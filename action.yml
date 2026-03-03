@@ -1,0 +1,30 @@
+name: "Dependabot Policy Enforcer"
+description: "Validates Dependabot policy compliance via HMAC-signed API call"
+author: "NHS England Tools"
+
+inputs:
+  api-endpoint:
+    description: >-
+      Full URL of the Dependabot Policy Enforcer API endpoint.
+      Set this as an organisation or repository variable (vars.DEPENDABOT_ENFORCER_API_ENDPOINT).
+    required: true
+  secret:
+    description: >-
+      Shared HMAC secret for this repository.
+      Must be stored as a repository secret (secrets.DEPENDABOT_ENFORCER_SECRET).
+      Never hardcode this value.
+    required: true
+  timeout-ms:
+    description: "Request timeout in milliseconds."
+    required: false
+    default: "10000"
+
+outputs:
+  status-code:
+    description: "The HTTP status code returned by the API."
+  response-body:
+    description: "The response body from the API (sensitive fields are redacted)."
+
+runs:
+  using: "node24"
+  main: "dist/index.js"

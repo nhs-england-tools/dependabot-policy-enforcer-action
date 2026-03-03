@@ -11,3 +11,10 @@
 !project.code-workspace
 
 # Please, add your custom content below!
+
+node_modules/
+
+# Yarn PnP - generated files, should not be committed (not using Zero-Installs)
+.pnp.*
+.yarn/install-state.gz
+.yarn/unplugged
