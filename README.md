@@ -1,7 +1,9 @@
-# dependabot-policy-enforcer-action
+# Dependabot Policy Enforcer Action
 
+<!-- vale off -->
 [![CI/CD Pull Request](https://github.com/nhs-england-tools/dependabot-policy-enforcer-action/actions/workflows/cicd-1-pull-request.yaml/badge.svg)](https://github.com/nhs-england-tools/dependabot-policy-enforcer-action/actions/workflows/cicd-1-pull-request.yaml)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dependabot-policy-enforcer-action&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dependabot-policy-enforcer-action)
+<!-- vale on -->
 
 A reusable GitHub Action that runs as a required workflow check. It generates a signed request using HMAC-SHA256 and calls the Dependabot Policy Enforcer API to validate that a repository meets Dependabot policy requirements.
 
@@ -14,7 +16,7 @@ This action:
 
 ## Table of Contents
 
-- [dependabot-policy-enforcer-action](#dependabot-policy-enforcer-action)
+- [Dependabot Policy Enforcer Action](#dependabot-policy-enforcer-action)
   - [Table of Contents](#table-of-contents)
   - [Setup](#setup)
     - [Prerequisites](#prerequisites)

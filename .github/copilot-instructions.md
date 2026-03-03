@@ -30,7 +30,7 @@ TypeScript-specific conventions:
 
 ## Architecture
 
-```
+```text
 scripts/
   hmac-helper.ts          # Core signing logic and CLI tool
   __tests__/
@@ -46,7 +46,7 @@ The signing logic in `scripts/hmac-helper.ts` is the authoritative reference imp
 
 The HMAC-SHA256 signature is computed as:
 
-```
+```text
 payload  = "<owner/repo>:<ISO 8601 UTC timestamp>"
 timestamp format: YYYY-MM-DDTHH:mm:ss.000Z  (milliseconds zeroed)
 signature = "sha256=" + HMAC-SHA256(secret, payload).hexdigest()

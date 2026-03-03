@@ -170,7 +170,7 @@ describe('HMAC Helper Functions', () => {
     it('should return ISO 8601 format with .000Z suffix', () => {
       vi.setSystemTime(new Date('2025-12-07T15:30:45.123Z'))
       const result = nowIso()
-      
+
       expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/)
       expect(result.endsWith('.000Z')).toBe(true)
     })
@@ -178,28 +178,28 @@ describe('HMAC Helper Functions', () => {
     it('should truncate milliseconds to .000', () => {
       vi.setSystemTime(new Date('2025-12-07T15:30:45.456Z'))
       const result = nowIso()
-      
+
       expect(result).toBe('2025-12-07T15:30:45.000Z')
     })
 
     it('should handle zero milliseconds', () => {
       vi.setSystemTime(new Date('2025-12-07T15:30:45.000Z'))
       const result = nowIso()
-      
+
       expect(result).toBe('2025-12-07T15:30:45.000Z')
     })
 
     it('should handle 999 milliseconds by truncating to previous second', () => {
       vi.setSystemTime(new Date('2025-12-07T15:30:45.999Z'))
       const result = nowIso()
-      
+
       expect(result).toBe('2025-12-07T15:30:45.000Z')
     })
 
     it('should handle single digit milliseconds', () => {
       vi.setSystemTime(new Date('2025-12-07T15:30:45.001Z'))
       const result = nowIso()
-      
+
       expect(result).toBe('2025-12-07T15:30:45.000Z')
     })
 
@@ -213,7 +213,7 @@ describe('HMAC Helper Functions', () => {
       times.forEach(time => {
         vi.setSystemTime(new Date(time))
         const result = nowIso()
-        
+
         expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/)
         expect(result.endsWith('.000Z')).toBe(true)
       })
@@ -224,7 +224,7 @@ describe('HMAC Helper Functions', () => {
       const timestamp = nowIso()
       const repo = 'test-org/test-repo'
       const payload = `${repo}:${timestamp}`
-      
+
       // Should not throw and should generate valid signature
       expect(() => hmacHex('secret', payload)).not.toThrow()
       expect(hmacHex('secret', payload)).toMatch(/^[a-f0-9]{64}$/)
@@ -233,7 +233,7 @@ describe('HMAC Helper Functions', () => {
     it('should produce parseable timestamp', () => {
       vi.setSystemTime(new Date('2025-12-07T15:30:45.456Z'))
       const result = nowIso()
-      
+
       // Should be parseable as a valid date
       const parsed = new Date(result)
       expect(parsed.toISOString()).toBe('2025-12-07T15:30:45.000Z')
@@ -322,7 +322,7 @@ describe('HMAC Helper Functions', () => {
       const secret = 'secret'
       const payload = 'test:2025-01-01T00:00:00.000Z'
       const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex')
-      
+
       expect(hmacHex(secret, payload)).toBe(expected)
     })
   })
@@ -400,7 +400,7 @@ describe('HMAC Helper Functions', () => {
     it('should handle replay attack detection with old timestamp', () => {
       const secret = 'test-secret'
       const repo = 'test-org/test'
-      
+
       // Signature from 10 minutes ago
       const oldTimestamp = applyOffset(baseTime, '-600s')
       const oldPayload = `${repo}:${oldTimestamp}`
@@ -417,7 +417,7 @@ describe('HMAC Helper Functions', () => {
     it('should handle clock skew tolerance window', () => {
       const secret = 'test-secret'
       const repo = 'test-org/test'
-      
+
       // Within 5 minute window
       const timestamp1 = applyOffset(baseTime, '-299s') // -4m 59s
       const timestamp2 = applyOffset(baseTime, '+299s') // +4m 59s
@@ -598,7 +598,7 @@ describe('HMAC Helper Functions', () => {
 
       // Extract just the header lines
       const headerLines = lines.slice(5)
-      
+
       expect(headerLines[0]).toMatch(/^\s+X-Hub-Repository:/)
       expect(headerLines[1]).toMatch(/^\s+X-Hub-Timestamp:/)
       expect(headerLines[2]).toMatch(/^\s+X-Hub-Signature-256:/)
@@ -801,7 +801,7 @@ describe('HMAC Helper Functions', () => {
         }
 
         const result = generateInvalidSignature(opts)
-        
+
         // Verify it uses secret + '_wrong'
         const wrongPayload = `${opts.repo}:${result.timestamp}`
         const expectedSig = hmacHex('test-secret_wrong', wrongPayload)
@@ -825,7 +825,7 @@ describe('HMAC Helper Functions', () => {
         const result = generateInvalidSignature(opts)
         const payload = `${opts.repo}:${result.timestamp}`
         const expectedSig = hmacHex('wrong', payload)
-        
+
         expect(result.signature).toBe(expectedSig)
       })
 
@@ -838,7 +838,7 @@ describe('HMAC Helper Functions', () => {
         }
 
         const result = generateInvalidSignature(opts)
-        
+
         expect(result.repo).toBe('test-org/test-repo')
         expect(result.timestamp).toBe('2025-12-07T12:00:00.000Z')
         expect(result.prefix).toBe('sha256=')
@@ -856,7 +856,7 @@ describe('HMAC Helper Functions', () => {
         }
 
         const result = generateInvalidSignature(opts)
-        
+
         // Verify it uses WRONG/repo in payload
         const wrongPayload = `WRONG/${opts.repo}:${result.timestamp}`
         const expectedSig = hmacHex(opts.secret, wrongPayload)
@@ -879,7 +879,7 @@ describe('HMAC Helper Functions', () => {
         const result = generateInvalidSignature(opts)
         const wrongPayload = `WRONG/${opts.repo}:${result.timestamp}`
         const expectedSig = hmacHex('secret', wrongPayload)
-        
+
         expect(result.signature).toBe(expectedSig)
       })
 
@@ -892,7 +892,7 @@ describe('HMAC Helper Functions', () => {
         }
 
         const result = generateInvalidSignature(opts)
-        
+
         // Result should contain original repo, not the modified one used for signature
         expect(result.repo).toBe('test-org/test-repo')
         expect(result.repo).not.toContain('WRONG/')
@@ -909,7 +909,7 @@ describe('HMAC Helper Functions', () => {
         }
 
         const result = generateInvalidSignature(opts)
-        
+
         // Verify it uses 1999-01-01 in signature calculation
         const wrongPayload = `${opts.repo}:1999-01-01T00:00:00.000Z`
         const expectedSig = hmacHex(opts.secret, wrongPayload)
@@ -930,7 +930,7 @@ describe('HMAC Helper Functions', () => {
         }
 
         const result = generateInvalidSignature(opts)
-        
+
         // Result should contain the provided timestamp, not the one used for signature
         expect(result.timestamp).toBe('2025-12-07T12:00:00.000Z')
         expect(result.timestamp).not.toBe('1999-01-01T00:00:00.000Z')
@@ -947,7 +947,7 @@ describe('HMAC Helper Functions', () => {
         const result = generateInvalidSignature(opts)
         const wrongPayload = `${opts.repo}:1999-01-01T00:00:00.000Z`
         const expectedSig = hmacHex('secret', wrongPayload)
-        
+
         expect(result.signature).toBe(expectedSig)
       })
     })
@@ -962,12 +962,12 @@ describe('HMAC Helper Functions', () => {
         }
 
         const result = generateInvalidSignature(opts)
-        
+
         // Verify it's the correct signature but uppercased
         const correctPayload = `${opts.repo}:${result.timestamp}`
         const lowercaseSig = hmacHex(opts.secret, correctPayload)
         expect(result.signature).toBe(lowercaseSig.toUpperCase())
-        
+
         expect(result.signature).toMatch(/^[A-F0-9]{64}$/)
         expect(result.signature).toBe(result.signature.toUpperCase())
       })
@@ -983,7 +983,7 @@ describe('HMAC Helper Functions', () => {
         const result = generateInvalidSignature(opts)
         const payload = `${opts.repo}:${result.timestamp}`
         const expectedSig = hmacHex('secret', payload).toUpperCase()
-        
+
         expect(result.signature).toBe(expectedSig)
       })
 
@@ -996,7 +996,7 @@ describe('HMAC Helper Functions', () => {
         }
 
         const result = generateInvalidSignature(opts)
-        
+
         expect(result.prefix).toBe('sha256=')
       })
     })
@@ -1013,7 +1013,7 @@ describe('HMAC Helper Functions', () => {
         const result = generateInvalidSignature(opts)
 
         expect(result.prefix).toBe('')
-        
+
         // Signature should still be valid, just without prefix
         const correctPayload = `${opts.repo}:${result.timestamp}`
         const expectedSig = hmacHex(opts.secret, correctPayload)
@@ -1031,7 +1031,7 @@ describe('HMAC Helper Functions', () => {
         const result = generateInvalidSignature(opts)
         const payload = `${opts.repo}:${result.timestamp}`
         const expectedSig = hmacHex('secret', payload)
-        
+
         expect(result.signature).toBe(expectedSig)
         expect(result.prefix).toBe('')
       })
@@ -1060,7 +1060,7 @@ describe('HMAC Helper Functions', () => {
         }
 
         const result = generateInvalidSignature(opts)
-        
+
         // Should behave same as wrong-secret
         const wrongPayload = `${opts.repo}:${result.timestamp}`
         const expectedSig = hmacHex('test-secret_wrong', wrongPayload)
@@ -1199,52 +1199,52 @@ describe('HMAC Helper Functions', () => {
   describe('validateRequiredOptions', () => {
     it('should return error when repo is missing', () => {
       const result = validateRequiredOptions('', 'secret', 'generate')
-      
+
       expect(result).not.toBeNull()
       expect(result?.error).toBe('Missing --repo')
     })
 
     it('should return error when secret is missing for generate mode', () => {
       const result = validateRequiredOptions('test-org/test', '', 'generate')
-      
+
       expect(result).not.toBeNull()
       expect(result?.error).toBe('Missing --secret')
     })
 
     it('should return error when secret is missing for verify mode', () => {
       const result = validateRequiredOptions('test-org/test', '', 'verify')
-      
+
       expect(result).not.toBeNull()
       expect(result?.error).toBe('Missing --secret')
     })
 
     it('should return null when secret is missing for invalid mode', () => {
       const result = validateRequiredOptions('test-org/test', '', 'invalid')
-      
+
       expect(result).toBeNull()
     })
 
     it('should return null when all required options are provided for generate', () => {
       const result = validateRequiredOptions('test-org/test', 'secret', 'generate')
-      
+
       expect(result).toBeNull()
     })
 
     it('should return null when all required options are provided for verify', () => {
       const result = validateRequiredOptions('test-org/test', 'secret', 'verify')
-      
+
       expect(result).toBeNull()
     })
 
     it('should return null when all required options are provided for invalid', () => {
       const result = validateRequiredOptions('test-org/test', 'secret', 'invalid')
-      
+
       expect(result).toBeNull()
     })
 
     it('should prioritize repo error over secret error', () => {
       const result = validateRequiredOptions('', '', 'generate')
-      
+
       expect(result).not.toBeNull()
       expect(result?.error).toBe('Missing --repo')
     })
