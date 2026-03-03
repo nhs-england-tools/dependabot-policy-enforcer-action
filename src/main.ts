@@ -36,6 +36,14 @@ export async function run(): Promise<void> {
     // ---------------------------------------------------------------
     // 3. Validate inputs
     // ---------------------------------------------------------------
+    if (!secret) {
+      core.setFailed(
+        'secret input is required. ' +
+        'Store it as the DEPENDABOT_ENFORCER_SECRET repository secret and reference it in your workflow.'
+      )
+      return
+    }
+
     if (!endpoint) {
       core.setFailed(
         'api-endpoint input is required. ' +

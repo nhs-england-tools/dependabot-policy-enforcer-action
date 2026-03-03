@@ -20,7 +20,20 @@ import http from 'node:http'
 import https from 'node:https'
 import { fileURLToPath, URL } from 'node:url'
 
-// Re-export signing functions from the shared library (single source of truth)
+// Import signing functions from the shared library (single source of truth)
+import {
+  nowIso,
+  applyOffset,
+  hmacHex,
+  withPrefix,
+  formatOutput,
+  generateSignature,
+  verifySignature,
+  generateInvalidSignature,
+  validateRequiredOptions,
+} from '../src/lib/signing.js'
+
+// Re-export for consumers of this module
 export {
   nowIso,
   applyOffset,
@@ -31,13 +44,15 @@ export {
   verifySignature,
   generateInvalidSignature,
   validateRequiredOptions,
-  type OutputData,
-  type GenerateOptions,
-  type VerifyOptions,
-  type VerifyResult,
-  type InvalidKind,
-  type InvalidOptions,
-  type ValidationError,
+}
+export type {
+  OutputData,
+  GenerateOptions,
+  VerifyOptions,
+  VerifyResult,
+  InvalidKind,
+  InvalidOptions,
+  ValidationError,
 } from '../src/lib/signing.js'
 
 type IncomingHttpHeaders = http.IncomingHttpHeaders

@@ -19917,12 +19917,10 @@ async function run() {
     const endpoint = core.getInput("api-endpoint", { required: true });
     const timeoutMs = Number.parseInt(core.getInput("timeout-ms") || "10000", 10);
     const repo = process.env.GITHUB_REPOSITORY ?? "";
-    if (secret) {
-      core.setSecret(secret);
-    }
+    core.setSecret(secret);
     if (!secret) {
       core.setFailed(
-        'DEPENDABOT_ENFORCER_SECRET is not set or is empty. Add it as a repository secret and pass it via the "secret" input.'
+        "secret input is required. Store it as the DEPENDABOT_ENFORCER_SECRET repository secret and reference it in your workflow."
       );
       return;
     }
