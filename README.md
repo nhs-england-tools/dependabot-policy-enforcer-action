@@ -126,19 +126,19 @@ A helper script is included at `scripts/hmac-helper.ts` to assist with local tes
 
 ```shell
 # Generate headers for a test request
-node scripts/hmac-helper.ts generate \
+yarn hmac-helper generate \
   --repo my-org/my-repo \
   --secret <your-secret>
 
 # Verify an existing signature
-node scripts/hmac-helper.ts verify \
+yarn hmac-helper verify \
   --repo my-org/my-repo \
   --secret <your-secret> \
   --timestamp 2026-03-03T12:00:00.000Z \
   --signature sha256=<hex>
 
 # Send a real request (for integration testing in dev)
-node scripts/hmac-helper.ts request \
+yarn hmac-helper request \
   --repo my-org/my-repo \
   --secret <your-secret> \
   --endpoint $DEPENDABOT_ENFORCER_API_ENDPOINT
