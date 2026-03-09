@@ -9,6 +9,7 @@ jobs:
   dependabot-policy:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
       - uses: ./
         with:
           api-endpoint: ${{ secrets.DEPENDABOT_ENFORCER_API_ENDPOINT }}
