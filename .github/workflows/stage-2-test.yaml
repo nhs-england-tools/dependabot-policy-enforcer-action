@@ -87,6 +87,7 @@ jobs:
           yarn build
       - name: "Check for uncommitted changes to dist/"
         run: |
+          git add --intent-to-add dist/
           if git diff --exit-code dist/; then
             echo "dist/ is up to date."
           else
