@@ -32,6 +32,7 @@ import {
   generateInvalidSignature,
   validateRequiredOptions,
 } from '../src/lib/signing.js'
+import { truncateBody } from '../src/lib/request.js'
 
 // Re-export for consumers of this module
 export {
@@ -59,7 +60,6 @@ type IncomingHttpHeaders = http.IncomingHttpHeaders
 
 const DEFAULT_METHOD = 'POST'
 const DEFAULT_TIMEOUT_MS = 10_000
-const MAX_BODY_LOG_LENGTH = 2_000
 
 type Mode = 'generate' | 'verify' | 'invalid' | 'request'
 
@@ -125,14 +125,6 @@ function buildRequestBody({ action = 'check', body, context }: BuildRequestBodyO
     payload.context = parseJsonOption(context, '--context')
   }
   return JSON.stringify(payload)
-}
-
-function truncateBody(body: string): string {
-  if (body.length <= MAX_BODY_LOG_LENGTH) {
-    return body
-  }
-  const overflow = body.length - MAX_BODY_LOG_LENGTH
-  return `${body.slice(0, MAX_BODY_LOG_LENGTH)}… [truncated ${overflow} chars]`
 }
 
 function indentMultiline(text: string, indent = '    '): string {

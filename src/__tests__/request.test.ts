@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import http from 'node:http'
-import { sendPolicyRequest } from '../../src/lib/request.js'
+import { sendPolicyRequest, truncateBody } from '../../src/lib/request.js'
 import { hmacHex } from '../../src/lib/signing.js'
 
 describe('sendPolicyRequest', () => {
@@ -150,5 +150,28 @@ describe('sendPolicyRequest', () => {
 
     expect(typeof result.durationMs).toBe('number')
     expect(result.durationMs).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('truncateBody', () => {
+  it('should return the body unchanged when below the limit', () => {
+    const body = 'x'.repeat(1999)
+    expect(truncateBody(body)).toBe(body)
+  })
+
+  it('should return the body unchanged when exactly at the limit', () => {
+    const body = 'x'.repeat(2000)
+    expect(truncateBody(body)).toBe(body)
+  })
+
+  it('should truncate body exceeding the limit and append overflow message', () => {
+    const body = 'x'.repeat(2500)
+    const result = truncateBody(body)
+    expect(result).toMatch(/… \[truncated 500 chars\]$/)
+    expect(result.startsWith('x'.repeat(2000))).toBe(true)
+  })
+
+  it('should return an empty string unchanged', () => {
+    expect(truncateBody('')).toBe('')
   })
 })

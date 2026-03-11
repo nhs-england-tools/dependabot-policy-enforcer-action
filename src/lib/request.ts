@@ -24,7 +24,7 @@ export interface PolicyRequestResult {
   durationMs: number
 }
 
-function truncateBody(body: string): string {
+export function truncateBody(body: string): string {
   if (body.length <= MAX_BODY_LOG_LENGTH) {
     return body
   }
