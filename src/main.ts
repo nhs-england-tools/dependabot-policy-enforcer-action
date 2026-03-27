@@ -27,6 +27,7 @@ export async function run(): Promise<void> {
     const endpoint = core.getInput('api-endpoint')
     const timeoutMs = Number.parseInt(core.getInput('timeout-ms') || '10000', 10)
     const repo = process.env.GITHUB_REPOSITORY ?? ''
+    const mode = (core.getInput('mode') || 'enforce').trim().toLowerCase()
 
     // ---------------------------------------------------------------
     // 2. Mask secret immediately
@@ -75,6 +76,13 @@ export async function run(): Promise<void> {
       return
     }
 
+    if (mode !== 'enforce' && mode !== 'report') {
+      core.setFailed(
+        `mode must be either "enforce" or "report", got "${core.getInput('mode')}".`
+      )
+      return
+    }
+
     // ---------------------------------------------------------------
     // 4. Send signed request
     // ---------------------------------------------------------------
@@ -84,6 +92,7 @@ export async function run(): Promise<void> {
       repo,
       secret,
       endpoint,
+      mode,
       timeoutMs,
     })
 
@@ -92,15 +101,29 @@ export async function run(): Promise<void> {
     // ---------------------------------------------------------------
     core.setOutput('status-code', result.statusCode.toString())
     core.setOutput('response-body', result.body)
+    const body = JSON.parse(result.body)
 
     if (result.statusCode >= 200 && result.statusCode < 300) {
+      if (body.pipelinePasses == 'false') {
+        core.setFailed(
+          `Policy check failed: \n` +
+          `${JSON.stringify(body, null, 2)}`
+        )
+        return
+      } else if (body.pipelinePasses == 'true' && body.message) {
+        core.info(
+          `Policy check message: ${body.message} \n` +
+          `Response: ${JSON.stringify(body, null, 2)}`
+        )
+        return
+      }
       core.info(
-        `Policy check passed (${result.statusCode}) in ${result.durationMs}ms.`
+      `Policy check passed (${result.statusCode}) in ${result.durationMs}ms.`
       )
     } else {
       core.setFailed(
         `Policy check failed with status ${result.statusCode} (${result.durationMs}ms).\n` +
-        `Response: ${result.body}`
+        `Response: ${JSON.stringify(body, null, 2)}`
       )
     }
   } catch (error) {

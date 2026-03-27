@@ -91,6 +91,7 @@ jobs:
         with:
           api-endpoint: ${{ vars.DEPENDABOT_ENFORCER_API_ENDPOINT }}
           secret: ${{ secrets.DEPENDABOT_ENFORCER_SECRET }}
+          mode: ${{ vars.DEPENDABOT_ENFORCER_MODE}}
 ```
 
 ### Inputs
@@ -99,6 +100,7 @@ jobs:
 |-------|----------|---------|-------------|
 | `api-endpoint` | Yes | — | Full URL of the Dependabot Policy Enforcer API endpoint. Set this as an organisation or repository variable (`vars.DEPENDABOT_ENFORCER_API_ENDPOINT`). |
 | `secret` | Yes | — | Shared HMAC secret for this repository. Must be stored as a repository secret (`secrets.DEPENDABOT_ENFORCER_SECRET`). **Never hardcode this value.** |
+| `mode` | No | `enforce` | Policy mode: `enforce` (fail workflow on policy violation) or `report` (log warnings but do not fail). |
 | `timeout-ms` | No | `10000` | Request timeout in milliseconds. |
 
 ### Outputs

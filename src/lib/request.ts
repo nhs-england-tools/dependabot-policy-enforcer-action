@@ -15,6 +15,7 @@ export interface PolicyRequestOptions {
   repo: string
   secret: string
   endpoint: string
+  mode: string
   timeoutMs?: number
 }
 
@@ -33,11 +34,11 @@ export function truncateBody(body: string): string {
 }
 
 export async function sendPolicyRequest(opts: PolicyRequestOptions): Promise<PolicyRequestResult> {
-  const { repo, secret, endpoint, timeoutMs = 10_000 } = opts
+  const { repo, secret, endpoint, mode, timeoutMs = 10_000 } = opts
 
   const signatureData = generateSignature({ repo, secret })
   const signatureHeader = `${signatureData.prefix}${signatureData.signature}`
-  const requestBody = JSON.stringify({ action: 'check' })
+  const requestBody = JSON.stringify({ action: 'check', mode: mode })
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

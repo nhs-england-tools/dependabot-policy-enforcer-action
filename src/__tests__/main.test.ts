@@ -38,6 +38,7 @@ describe('Action Entry Point (run)', () => {
       switch (name) {
         case 'secret': return 'test-secret-value'
         case 'api-endpoint': return 'https://api.example.com/check'
+        case 'mode': return 'enforce'
         case 'timeout-ms': return '10000'
         default: return ''
       }
@@ -108,8 +109,75 @@ describe('Action Entry Point (run)', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret-value',
       endpoint: 'https://api.example.com/check',
+      mode: 'enforce',
       timeoutMs: 10000,
     })
+  })
+
+  it('should accept report mode', async () => {
+    mockGetInput.mockImplementation((name: string) => {
+      if (name === 'secret') return 'test-secret-value'
+      if (name === 'api-endpoint') return 'https://api.example.com/check'
+      if (name === 'mode') return 'report'
+      if (name === 'timeout-ms') return '10000'
+      return ''
+    })
+
+    await run()
+
+    expect(mockSetFailed).not.toHaveBeenCalled()
+    expect(mockSendPolicyRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repo: 'test-org/test-repo',
+        secret: 'test-secret-value',
+        endpoint: 'https://api.example.com/check',
+        timeoutMs: 10000,
+      })
+    )
+  })
+
+  it('should fail the action if pipelinePasses is false in a 2xx response', async () => {
+    mockSendPolicyRequest.mockResolvedValue({
+      statusCode: 200,
+      body: '{"pipelinePasses":"false","status":"non-compliant"}',
+      durationMs: 50,
+    })
+
+    await run()
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining('Policy check failed')
+    )
+    expect(mockSetOutput).toHaveBeenCalledWith('status-code', '200')
+    expect(mockSetOutput).toHaveBeenCalledWith('response-body', '{"pipelinePasses":"false","status":"non-compliant"}')
+  })
+
+  it('should log message and response if pipelinePasses is true with a message', async () => {
+    mockSendPolicyRequest.mockResolvedValue({
+      statusCode: 200,
+      body: '{"pipelinePasses":"true","message":"Some failure"}',
+      durationMs: 50,
+    })
+
+    await run()
+
+    expect(mockInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Policy check message: Some failure')
+    )
+  })
+
+  it('should log generic success message if pipelinePasses is true without a message', async () => {
+    mockSendPolicyRequest.mockResolvedValue({
+      statusCode: 200,
+      body: '{"pipelinePasses":"true"}',
+      durationMs: 50,
+    })
+
+    await run()
+
+    expect(mockInfo).toHaveBeenCalledWith(
+      expect.stringContaining('Policy check passed')
+    )
   })
 
   // ---------------------------------------------------------------
@@ -208,6 +276,22 @@ describe('Action Entry Point (run)', () => {
     expect(mockSendPolicyRequest).not.toHaveBeenCalled()
   })
 
+  it('should fail when mode is not enforce or report', async () => {
+    mockGetInput.mockImplementation((name: string) => {
+      if (name === 'secret') return 'test-secret-value'
+      if (name === 'api-endpoint') return 'https://api.example.com/check'
+      if (name === 'mode') return 'invalid-mode'
+      if (name === 'timeout-ms') return '10000'
+      return ''
+    })
+
+    await run()
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining('mode must be either "enforce" or "report"')
+    )
+    expect(mockSendPolicyRequest).not.toHaveBeenCalled()
+  })
   // ---------------------------------------------------------------
   // Network / unexpected errors
   // ---------------------------------------------------------------
