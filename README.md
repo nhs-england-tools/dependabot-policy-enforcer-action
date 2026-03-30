@@ -91,7 +91,7 @@ jobs:
         with:
           api-endpoint: ${{ vars.DEPENDABOT_ENFORCER_API_ENDPOINT }}
           secret: ${{ secrets.DEPENDABOT_ENFORCER_SECRET }}
-          mode: ${{ vars.DEPENDABOT_ENFORCER_MODE}}
+          mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
 ```
 
 ### Inputs
@@ -115,13 +115,13 @@ jobs:
 Run the test suite:
 
 ```shell
-yarn test --run
+yarn test --typecheck --run
 ```
 
 Run with coverage:
 
 ```shell
-yarn test --run --coverage
+yarn test --typecheck --run --coverage
 ```
 
 A helper script is included at `scripts/hmac-helper.ts` to assist with local testing and signature verification. The core functions (`hmacHex`, `generateSignature`, `verifySignature`) are the reference implementation of the signing algorithm, providing a vetted starting point and enabling debugging of signature failures before raising a pull request:

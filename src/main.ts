@@ -6,23 +6,23 @@
  * workflow check based on the response.
  */
 
-import * as core from '@actions/core'
-import { sendPolicyRequest } from './lib/request.js'
+import * as core from "@actions/core";
+import { sendPolicyRequest } from "./lib/request.js";
 
 const LOG_STYLE = {
-reset: '\x1b[0m',
-bold: '\x1b[1m',
-green: '\x1b[32m',
-yellow: '\x1b[33m',
-red: '\x1b[31m',
-}
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  red: "\x1b[31m",
+};
 
 function validateUrl(value: string): boolean {
   try {
-    new URL(value)
-    return true
+    new URL(value);
+    return true;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -31,70 +31,73 @@ export async function run(): Promise<void> {
     // ---------------------------------------------------------------
     // 1. Read inputs
     // ---------------------------------------------------------------
-    const secret = core.getInput('secret')
-    const endpoint = core.getInput('api-endpoint')
-    const timeoutMs = Number.parseInt(core.getInput('timeout-ms') || '10000', 10)
-    const repo = process.env.GITHUB_REPOSITORY ?? ''
-    const mode = (core.getInput('mode') || 'enforce').trim().toLowerCase()
+    const secret = core.getInput("secret");
+    const endpoint = core.getInput("api-endpoint");
+    const timeoutMs = Number.parseInt(
+      core.getInput("timeout-ms") || "10000",
+      10,
+    );
+    const repo = process.env.GITHUB_REPOSITORY ?? "";
+    const mode = (core.getInput("mode") || "enforce").trim().toLowerCase();
 
     // ---------------------------------------------------------------
     // 2. Mask secret immediately
     // ---------------------------------------------------------------
-    core.setSecret(secret)
+    core.setSecret(secret);
 
     // ---------------------------------------------------------------
     // 3. Validate inputs
     // ---------------------------------------------------------------
     if (!secret) {
       core.setFailed(
-        'secret input is required. ' +
-        'Store it as the DEPENDABOT_ENFORCER_SECRET repository secret and reference it in your workflow.'
-      )
-      return
+        "secret input is required. " +
+          "Store it as the DEPENDABOT_ENFORCER_SECRET repository secret and reference it in your workflow.",
+      );
+      return;
     }
 
     if (!endpoint) {
       core.setFailed(
-        'api-endpoint input is required. ' +
-        'Set it as an organisation or repository variable (vars.DEPENDABOT_ENFORCER_API_ENDPOINT).'
-      )
-      return
+        "api-endpoint input is required. " +
+          "Set it as an organisation or repository variable (vars.DEPENDABOT_ENFORCER_API_ENDPOINT).",
+      );
+      return;
     }
 
     if (!validateUrl(endpoint)) {
       core.setFailed(
         `api-endpoint value is not a valid URL: "${endpoint}". ` +
-        'Provide a fully-qualified URL including the scheme (e.g. https://api.example.com/check).'
-      )
-      return
+          "Provide a fully-qualified URL including the scheme (e.g. https://api.example.com/check).",
+      );
+      return;
     }
 
     if (!repo) {
       core.setFailed(
-        'GITHUB_REPOSITORY environment variable is not set. ' +
-        'This action must run inside a GitHub Actions workflow.'
-      )
-      return
+        "GITHUB_REPOSITORY environment variable is not set. " +
+          "This action must run inside a GitHub Actions workflow.",
+      );
+      return;
     }
 
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
       core.setFailed(
-        `timeout-ms must be a positive number, got "${core.getInput('timeout-ms')}".`
-      )
-      return
+        `timeout-ms must be a positive number, got "${core.getInput("timeout-ms")}".`,
+      );
+      return;
     }
 
-    if (mode !== 'enforce' && mode !== 'report') {
+    if (mode !== "enforce" && mode !== "report") {
       core.setFailed(
-        `mode must be either "enforce" or "report", got "${core.getInput('mode')}".`
-      )
-      return
+        `mode must be either "enforce" or "report", got "${core.getInput("mode")}".`,
+      );
+      return;
     }
 
     // ---------------------------------------------------------------
     // 4. Send signed request
     // ---------------------------------------------------------------
-    core.info(`Checking Dependabot policy for ${repo}…`)
+    core.info(`Checking Dependabot policy for ${repo}…`);
 
     const result = await sendPolicyRequest({
       repo,
@@ -102,43 +105,45 @@ export async function run(): Promise<void> {
       endpoint,
       mode,
       timeoutMs,
-    })
+    });
 
     // ---------------------------------------------------------------
     // 5. Set outputs
     // ---------------------------------------------------------------
-    core.setOutput('status-code', result.statusCode.toString())
-    core.setOutput('response-body', result.body)
-    const body = JSON.parse(result.body)
+    core.setOutput("status-code", result.statusCode.toString());
+    core.setOutput("response-body", result.body);
+    const body = JSON.parse(result.body);
 
     if (result.statusCode >= 200 && result.statusCode < 300) {
-      if (body.pipelinePasses == 'false') {
+      if (body.pipelinePasses === "false") {
         core.setFailed(
           `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} \n` +
-          `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
-        )
-        return
-      } else if (body.pipelinePasses == 'true' && body.message) {
+            `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`,
+        );
+        return;
+      } else if (body.pipelinePasses === "true" && body.message) {
         core.info(
           `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${body.message} \n` +
-          `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}\n` +
-          `${LOG_STYLE.bold}Findings:${LOG_STYLE.reset} ${JSON.stringify(body.findings, null, 2)}`
-        )
-        return
+            `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}\n` +
+            `${LOG_STYLE.bold}Findings:${LOG_STYLE.reset} ${JSON.stringify(body.findings, null, 2)}`,
+        );
+        return;
       }
       core.info(
-        `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed (${result.statusCode}) in ${result.durationMs}ms.${LOG_STYLE.reset}`
-      )
+        `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed (${result.statusCode}) in ${result.durationMs}ms.${LOG_STYLE.reset}`,
+      );
     } else {
       core.setFailed(
         `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed with status ${result.statusCode} (${result.durationMs}ms).${LOG_STYLE.reset}\n` +
-        `${LOG_STYLE.bold}Response:${LOG_STYLE.reset} ${result.body}`
-      )
+          `${LOG_STYLE.bold}Response:${LOG_STYLE.reset} ${result.body}`,
+      );
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    core.setFailed(`${LOG_STYLE.bold}${LOG_STYLE.red}Unexpected error:${LOG_STYLE.reset} ${message}`)
+    const message = error instanceof Error ? error.message : String(error);
+    core.setFailed(
+      `${LOG_STYLE.bold}${LOG_STYLE.red}Unexpected error:${LOG_STYLE.reset} ${message}`,
+    );
   }
 }
 
-run()
+run();

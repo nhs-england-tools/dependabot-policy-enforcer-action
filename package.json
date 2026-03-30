@@ -7,7 +7,7 @@
   "scripts": {
     "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --outfile=dist/index.cjs --format=cjs",
     "test": "vitest",
-    "all": "yarn build && yarn test --run",
+    "all": "yarn build && yarn test --typecheck --run",
     "hmac-helper": "tsx scripts/hmac-helper.ts"
   },
   "dependencies": {
