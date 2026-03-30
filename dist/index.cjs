@@ -19922,7 +19922,10 @@ async function run() {
   try {
     const secret = core.getInput("secret");
     const endpoint = core.getInput("api-endpoint");
-    const timeoutMs = Number.parseInt(core.getInput("timeout-ms") || "10000", 10);
+    const timeoutMs = Number.parseInt(
+      core.getInput("timeout-ms") || "10000",
+      10
+    );
     const repo = process.env.GITHUB_REPOSITORY ?? "";
     const mode = (core.getInput("mode") || "enforce").trim().toLowerCase();
     core.setSecret(secret);
@@ -19974,13 +19977,13 @@ async function run() {
     core.setOutput("response-body", result.body);
     const body = JSON.parse(result.body);
     if (result.statusCode >= 200 && result.statusCode < 300) {
-      if (body.pipelinePasses == "false") {
+      if (body.pipelinePasses === "false") {
         core.setFailed(
           `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} 
 ${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
         );
         return;
-      } else if (body.pipelinePasses == "true" && body.message) {
+      } else if (body.pipelinePasses === "true" && body.message) {
         core.info(
           `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${body.message} 
 ${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}
@@ -19999,7 +20002,9 @@ ${LOG_STYLE.bold}Response:${LOG_STYLE.reset} ${result.body}`
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    core.setFailed(`${LOG_STYLE.bold}${LOG_STYLE.red}Unexpected error:${LOG_STYLE.reset} ${message}`);
+    core.setFailed(
+      `${LOG_STYLE.bold}${LOG_STYLE.red}Unexpected error:${LOG_STYLE.reset} ${message}`
+    );
   }
 }
 run();
