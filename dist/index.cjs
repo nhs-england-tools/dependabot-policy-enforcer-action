@@ -19975,8 +19975,8 @@ async function run() {
     });
     core.setOutput("status-code", result.statusCode.toString());
     core.setOutput("response-body", result.body);
-    const body = JSON.parse(result.body);
     if (result.statusCode >= 200 && result.statusCode < 300) {
+      const body = JSON.parse(result.body);
       if (body.pipelinePasses === "false") {
         core.setFailed(
           `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} 
