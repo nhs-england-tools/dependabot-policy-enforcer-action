@@ -123,11 +123,11 @@ export async function run(): Promise<void> {
     core.setOutput("response-body", result.body);
 
     if (result.statusCode >= 200 && result.statusCode < 300) {
-      // NOTE: The API returns the pipelinePasses field as a string ("true"/"false") based on the mode.
+      // NOTE: The API returns the pipelinePasses field as a boolean (true/false) based on the mode.
       // More information on the dependabot policy enforcer API can be found on:
       // https://github.com/NHSDigital/github-scanning-utils/tree/main/event-processing-lambdas/lambda/dependabot_policy_enforcer
       const body = JSON.parse(result.body);
-      const passed = body.pipelinePasses === "true";
+      const passed = body.pipelinePasses === true;
       if (!passed) {
         core.setFailed(
           `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} \n` +

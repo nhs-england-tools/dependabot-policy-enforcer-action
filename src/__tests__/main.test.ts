@@ -69,7 +69,7 @@ describe("Action Entry Point (run)", () => {
     // Default successful response
     mockSendPolicyRequest.mockResolvedValue({
       statusCode: 200,
-      body: '{"pipelinePasses":"true","status":"compliant"}',
+      body: '{"pipelinePasses": true,"status":"compliant"}',
       durationMs: 42,
     });
   });
@@ -115,7 +115,7 @@ describe("Action Entry Point (run)", () => {
     expect(mockSetOutput).toHaveBeenCalledWith("status-code", "200");
     expect(mockSetOutput).toHaveBeenCalledWith(
       "response-body",
-      '{"pipelinePasses":"true","status":"compliant"}',
+      '{"pipelinePasses": true,"status":"compliant"}',
     );
     expect(mockSetFailed).not.toHaveBeenCalled();
   });
@@ -165,7 +165,7 @@ describe("Action Entry Point (run)", () => {
   it("should fail the action if pipelinePasses is false in a 2xx response", async () => {
     mockSendPolicyRequest.mockResolvedValue({
       statusCode: 200,
-      body: '{"pipelinePasses":"false","status":"non-compliant"}',
+      body: '{"pipelinePasses": false,"status":"non-compliant"}',
       durationMs: 50,
     });
 
@@ -177,14 +177,14 @@ describe("Action Entry Point (run)", () => {
     expect(mockSetOutput).toHaveBeenCalledWith("status-code", "200");
     expect(mockSetOutput).toHaveBeenCalledWith(
       "response-body",
-      '{"pipelinePasses":"false","status":"non-compliant"}',
+      '{"pipelinePasses": false,"status":"non-compliant"}',
     );
   });
 
   it("should log message and response if pipelinePasses is true with a message", async () => {
     mockSendPolicyRequest.mockResolvedValue({
       statusCode: 200,
-      body: '{"pipelinePasses":"true","message":"Some failure"}',
+      body: '{"pipelinePasses": true,"message":"Some failure"}',
       durationMs: 50,
     });
 
@@ -200,7 +200,7 @@ describe("Action Entry Point (run)", () => {
   it("should log generic success message if pipelinePasses is true without a message", async () => {
     mockSendPolicyRequest.mockResolvedValue({
       statusCode: 200,
-      body: '{"pipelinePasses":"true"}',
+      body: '{"pipelinePasses": true}',
       durationMs: 50,
     });
 
