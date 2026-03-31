@@ -52,6 +52,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     expect(result.statusCode).toBe(200)
@@ -66,6 +67,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'verify-me',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     const timestamp = lastHeaders?.['x-hub-timestamp'] as string
@@ -77,14 +79,15 @@ describe('sendPolicyRequest', () => {
     expect(sigHex).toBe(expectedHex)
   })
 
-  it('should send {"action":"check"} as request body', async () => {
+  it('should send action and mode as request body', async () => {
     await sendPolicyRequest({
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
-    expect(JSON.parse(lastBody)).toEqual({ action: 'check' })
+    expect(JSON.parse(lastBody)).toEqual({ action: 'check', mode: 'enforce' })
   })
 
   it('should return status code and body on success', async () => {
@@ -95,6 +98,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     expect(result.statusCode).toBe(200)
@@ -110,6 +114,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     expect(result.statusCode).toBe(403)
@@ -124,6 +129,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     expect(result.body.length).toBeLessThanOrEqual(2100) // 2000 + truncation message
@@ -136,6 +142,7 @@ describe('sendPolicyRequest', () => {
         repo: 'test-org/test-repo',
         secret: 'test-secret',
         endpoint: 'http://127.0.0.1:1/never-listening',
+        mode: 'enforce',
         timeoutMs: 2000,
       })
     ).rejects.toThrow()
@@ -146,6 +153,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     expect(typeof result.durationMs).toBe('number')
