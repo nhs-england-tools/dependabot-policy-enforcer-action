@@ -18,6 +18,12 @@ inputs:
     description: "Request timeout in milliseconds."
     required: false
     default: "10000"
+  github-token:
+    description: >-
+      GitHub token used to post a policy summary comment on the pull request.
+      Use the built-in secrets.GITHUB_TOKEN. If omitted, no PR comment is posted.
+    required: false
+    default: ""
 
 outputs:
   status-code:

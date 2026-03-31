@@ -100,6 +100,7 @@ jobs:
 | `api-endpoint` | Yes | — | Full URL of the Dependabot Policy Enforcer API endpoint. Set this as an organisation or repository variable (`vars.DEPENDABOT_ENFORCER_API_ENDPOINT`). |
 | `secret` | Yes | — | Shared HMAC secret for this repository. Must be stored as a repository secret (`secrets.DEPENDABOT_ENFORCER_SECRET`). **Never hardcode this value.** |
 | `timeout-ms` | No | `10000` | Request timeout in milliseconds. |
+| `github-token` | No | — | GitHub Token for PR comment addition. |
 
 ### Outputs
 
