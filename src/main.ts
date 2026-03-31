@@ -118,23 +118,23 @@ export async function run(): Promise<void> {
       // More information on the dependabot policy enforcer API can be found on:
       // https://github.com/NHSDigital/github-scanning-utils/tree/main/event-processing-lambdas/lambda/dependabot_policy_enforcer
       const body = JSON.parse(result.body);
-      if (body.pipelinePasses === "false") {
+      const passed = body.pipelinePasses === "true";
+      if (!passed) {
         core.setFailed(
           `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} \n` +
             `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`,
         );
-        return;
-      } else if (body.pipelinePasses === "true" && body.message) {
+      } else if (passed && body.message) {
         core.info(
           `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${body.message} \n` +
             `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}\n` +
             `${LOG_STYLE.bold}Findings:${LOG_STYLE.reset} ${JSON.stringify(body.findings, null, 2)}`,
         );
-        return;
-      }
-      core.info(
-        `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed (${result.statusCode}) in ${result.durationMs}ms.${LOG_STYLE.reset}`,
-      );
+      } else {
+          core.info(
+            `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed (${result.statusCode}) in ${result.durationMs}ms.${LOG_STYLE.reset}`,
+          );
+        }
     } else {
       core.setFailed(
         `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed with status ${result.statusCode} (${result.durationMs}ms).${LOG_STYLE.reset}\n` +
