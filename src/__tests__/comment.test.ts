@@ -174,7 +174,7 @@ describe('postPrComment', () => {
     mode: 'enforcing',
     repository: 'test-org/test-repo',
     summary: { total: 0 },
-    findings: { violations: {critical: [{openedAt: '2024-06-01T00:00:00Z'}]} },
+    findings: { critical: [{openedAt: '2024-06-01T00:00:00Z'}] },
   }
 
   it('should do nothing when prNumber is null', async () => {

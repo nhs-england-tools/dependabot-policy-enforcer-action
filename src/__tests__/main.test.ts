@@ -395,7 +395,7 @@ describe("PR comment integration", () => {
 
     mockSendPolicyRequest.mockResolvedValue({
       statusCode: 200,
-      body: '{"pipelinePasses":true,"mode":"enforce", "summary": {"totalOpenAlerts": 0, "violatingAlerts": 0}, "findings": {"violations": {"critical": [], "medium": [], "low": []}}}',
+      body: '{"pipelinePasses":true,"mode":"enforce", "summary": {"totalOpenAlerts": 0, "violatingAlerts": 0}, "findings": {"critical": [], "medium": [], "low": []}}',
       durationMs: 30,
     });
 
@@ -491,7 +491,7 @@ describe("PR comment integration", () => {
   it("should call postPrComment and setFailed when pipelinePasses is false", async () => {
     mockSendPolicyRequest.mockResolvedValue({
       statusCode: 200,
-      body: '{"pipelinePasses":"false","status":"non-compliant","summary":{},"findings":{"violations":{}}}',
+      body: '{"pipelinePasses":"false","status":"non-compliant","summary":{},"findings":{"critical": [], "medium": [], "low": []}}',
       durationMs: 50,
     });
 
