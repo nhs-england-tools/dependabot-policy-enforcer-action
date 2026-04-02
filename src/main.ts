@@ -8,6 +8,7 @@
 
 import * as core from "@actions/core";
 import { sendPolicyRequest } from "./lib/request.js";
+import { postPrComment, extractPrNumber } from "./lib/comment.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",
@@ -95,7 +96,15 @@ export async function run(): Promise<void> {
     }
 
     // ---------------------------------------------------------------
-    // 4. Send signed request
+    // 4. Read optional github-token and mask it immediately
+    // ---------------------------------------------------------------
+    const githubToken = core.getInput("github-token");
+    if (githubToken) {
+      core.setSecret(githubToken);
+    }
+
+    // ---------------------------------------------------------------
+    // 5. Send signed request
     // ---------------------------------------------------------------
     core.info(`Checking Dependabot policy for ${repo}…`);
 
@@ -108,7 +117,7 @@ export async function run(): Promise<void> {
     });
 
     // ---------------------------------------------------------------
-    // 5. Set outputs
+    // 6. Set outputs
     // ---------------------------------------------------------------
     core.setOutput("status-code", result.statusCode.toString());
     core.setOutput("response-body", result.body);
@@ -127,11 +136,32 @@ export async function run(): Promise<void> {
             `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
         );
       } else {
-          core.info(
-            `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed (${result.statusCode}) in ${result.durationMs}ms.${LOG_STYLE.reset}`,
-          );
+        core.info(
+          `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed (${result.statusCode}) in ${result.durationMs}ms.${LOG_STYLE.reset}`,
+        );
+      }
+
+      // Post a PR comment if the github-token is provided, regardless of pass/fail, but only for "pull_request" events
+      if (githubToken) {
+        const prNumber = extractPrNumber(
+          process.env.GITHUB_EVENT_NAME,
+          process.env.GITHUB_REF,
+        );
+        try {
+          await postPrComment(githubToken, repo, prNumber, body, passed, mode);
+        } catch (commentError) {
+          const commentMsg =
+            commentError instanceof Error
+              ? commentError.message
+              : String(commentError);
+          core.warning(`Failed to post PR comment: ${commentMsg}`);
         }
+      }
     } else {
+      // Non-2xx responses indicate an API or configuration error (e.g. invalid
+      // secret, unreachable endpoint). These are always fatal regardless of
+      // mode — report mode only suppresses policy violations, not infrastructure
+      // failures.
       core.setFailed(
         `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed with status ${result.statusCode} (${result.durationMs}ms).${LOG_STYLE.reset}\n` +
           `${LOG_STYLE.bold}Response:${LOG_STYLE.reset} ${result.body}`,

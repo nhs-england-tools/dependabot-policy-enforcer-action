@@ -92,6 +92,7 @@ jobs:
           api-endpoint: ${{ vars.DEPENDABOT_ENFORCER_API_ENDPOINT }}
           secret: ${{ secrets.DEPENDABOT_ENFORCER_SECRET }}
           mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### Inputs
@@ -102,6 +103,7 @@ jobs:
 | `secret` | Yes | — | Shared HMAC secret for this repository. Must be stored as a repository secret (`secrets.DEPENDABOT_ENFORCER_SECRET`). **Never hardcode this value.** |
 | `mode` | No | `enforce` | Policy mode: `enforce` (fail workflow on policy violation) or `report` (log warnings but do not fail). |
 | `timeout-ms` | No | `10000` | Request timeout in milliseconds. |
+| `github-token` | No | — | GitHub Token for PR comment addition. |
 
 ### Outputs
 
