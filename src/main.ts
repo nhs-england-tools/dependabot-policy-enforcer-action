@@ -158,6 +158,10 @@ export async function run(): Promise<void> {
         }
       }
     } else {
+      // Non-2xx responses indicate an API or configuration error (e.g. invalid
+      // secret, unreachable endpoint). These are always fatal regardless of
+      // mode — report mode only suppresses policy violations, not infrastructure
+      // failures.
       core.setFailed(
         `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed with status ${result.statusCode} (${result.durationMs}ms).${LOG_STYLE.reset}\n` +
           `${LOG_STYLE.bold}Response:${LOG_STYLE.reset} ${result.body}`,
