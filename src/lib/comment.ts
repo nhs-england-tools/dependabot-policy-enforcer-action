@@ -6,6 +6,7 @@
  */
 
 import { HttpClient } from '@actions/http-client'
+import { PACKAGE_FILE_NAMES, PACKAGE_FILE_EXTENSIONS } from './constants.js'
 
 const USER_AGENT = 'dependabot-policy-enforcer-action'
 const GITHUB_API_BASE = 'https://api.github.com'
@@ -16,6 +17,11 @@ export const COMMENT_MARKER = '<!-- dependabot-policy-enforcer -->'
 // ---------------------------------------------------------------------------
 // Response shape
 // ---------------------------------------------------------------------------
+
+export interface PrFile {
+  filename: string
+  status: string
+}
 
 export interface PolicyResponse {
   pipelinePasses: string
@@ -78,7 +84,7 @@ export interface CommentOptions {
 }
 
 // ---------------------------------------------------------------------------
-// GitHub API calls
+// GitHub API helpers
 // ---------------------------------------------------------------------------
 
 function githubHeaders(token: string): Record<string, string> {
@@ -88,6 +94,45 @@ function githubHeaders(token: string): Record<string, string> {
     'X-GitHub-Api-Version': '2022-11-28',
   }
 }
+
+// ---------------------------------------------------------------------------
+// Package file detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when the given file path looks like a package or dependency
+ * management file (e.g. package.json, go.mod, requirements-dev.txt).
+ */
+export function isPackageFile(filename: string): boolean {
+  const base = (filename.split('/').pop() ?? filename)
+  if (PACKAGE_FILE_NAMES.has(base)) return true
+  if (/^requirements.*\.txt$/.test(base)) return true
+  return PACKAGE_FILE_EXTENSIONS.some(ext => base.endsWith(ext))
+}
+
+/**
+ * Returns the list of file paths changed by a pull request.
+ * Calls the GitHub REST API: GET /repos/{owner}/{repo}/pulls/{prNumber}/files
+ */
+export async function getChangedFiles(token: string, owner: string, repo: string, prNumber: number): Promise<string[]> {
+  const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`
+  const client = new HttpClient(USER_AGENT)
+  try {
+    const response = await client.get(url, githubHeaders(token))
+    const body = await response.readBody()
+    const status = response.message.statusCode ?? 0
+    if (status < 200 || status >= 300) {
+      throw new Error(`GitHub API error listing PR files: HTTP ${status}`)
+    }
+    return (JSON.parse(body) as PrFile[]).map(f => f.filename)
+  } finally {
+    client.dispose()
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GitHub API calls — PR comments
+// ---------------------------------------------------------------------------
 
 async function listPrComments(opts: CommentOptions): Promise<GithubComment[]> {
   const { token, owner, repo, prNumber } = opts

@@ -8,7 +8,7 @@
 
 import * as core from "@actions/core";
 import { sendPolicyRequest } from "./lib/request.js";
-import { postPrComment, extractPrNumber } from "./lib/comment.js";
+import { postPrComment, extractPrNumber, getChangedFiles, isPackageFile } from "./lib/comment.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",
@@ -124,13 +124,50 @@ export async function run(): Promise<void> {
 
     if (result.statusCode >= 200 && result.statusCode < 300) {
       const body = JSON.parse(result.body);
-      const passed = mode === "report" ? true : body.pipelinePasses === true;
+      const prNumber = extractPrNumber(
+        process.env.GITHUB_EVENT_NAME,
+        process.env.GITHUB_REF,
+      );
+      let passed = mode === "report" ? true : body.pipelinePasses === true;
+
+      // ---------------------------------------------------------------
+      // 6a. Package-file exemption (enforce mode only)
+      //
+      // If the PR changes package or dependency management files, assume
+      // it is attempting to fix a vulnerability. Rather than failing the
+      // workflow, print the policy summary and let the PR proceed.
+
+      // The check requires a github-token and a valid PR number; if
+      // either is absent we skip checking if package files have been
+      // changed (fail-safe: still fails).
+      // If the API call to Github to fetch PR files fails, a warning is emitted a
+      // and the original passed=false is preserved (fail-safe default).
+      // ---------------------------------------------------------------
+
+      if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
+        try {
+          const [owner, repoName] = repo.split("/");
+          const files = await getChangedFiles(githubToken, owner, repoName, prNumber);
+          if (files.some(isPackageFile)) {
+            passed = true;
+            core.info(
+              `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package files. Allowing step to succeed.${LOG_STYLE.reset}. \n` +
+              `Please review the policy summary and ensure the PR is fixing a vulnerability or updating dependencies appropriately. \n` +
+              `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
+            );
+          }
+        } catch (filesError) {
+          const filesMsg = filesError instanceof Error ? filesError.message : String(filesError);
+          core.warning(`Failed to check PR changed files: ${filesMsg}`);
+        }
+      }
+
       if (!passed) {
         core.setFailed(
           `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} \n` +
             `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`,
         );
-      } else if (passed && body.message) {
+      } else if (passed && body.message) { // Message present in report mode
         core.info(
           `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${body.message} \n` +
             `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
@@ -143,10 +180,6 @@ export async function run(): Promise<void> {
 
       // Post a PR comment if the github-token is provided, regardless of pass/fail, but only for "pull_request" events
       if (githubToken) {
-        const prNumber = extractPrNumber(
-          process.env.GITHUB_EVENT_NAME,
-          process.env.GITHUB_REF,
-        );
         try {
           await postPrComment(githubToken, repo, prNumber, body, passed, mode);
         } catch (commentError) {
