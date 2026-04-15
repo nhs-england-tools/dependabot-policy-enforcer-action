@@ -29,6 +29,8 @@ export const PACKAGE_FILE_NAMES = new Set([
   // Python (requirements.txt like files handled in isPackageFile)
   'pipfile',
   'pipfile.lock',
+  'Pipfile',
+  'Pipfile.lock',
   'setup.py',
   'setup.cfg',
   'pyproject.toml',

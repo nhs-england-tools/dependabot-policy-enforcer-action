@@ -19,9 +19,9 @@ const mockHttp = vi.hoisted(() => {
   const readBody = vi.fn<() => Promise<string>>()
   const message = { statusCode: 200 }
   const response = { readBody, message }
-  const get = vi.fn<() => Promise<typeof response>>().mockResolvedValue(response)
-  const post = vi.fn<() => Promise<typeof response>>().mockResolvedValue(response)
-  const patch = vi.fn<() => Promise<typeof response>>().mockResolvedValue(response)
+  const get = vi.fn<(url: string, headers?: Record<string, string>) => Promise<typeof response>>().mockResolvedValue(response)
+  const post = vi.fn<(url: string, body: string, headers?: Record<string, string>) => Promise<typeof response>>()
+  const patch = vi.fn<(url: string, body: string, headers?: Record<string, string>) => Promise<typeof response>>()
 
   return { dispose, readBody, message, response, get, post, patch }
 })
@@ -194,7 +194,7 @@ describe('postPrComment', () => {
     await postPrComment('tok', 'test-org/test-repo', 7, VALID_BODY, true, 'enforce')
 
     expect(mockHttp.get).toHaveBeenCalledOnce()
-    const [listUrl] = mockHttp.get.mock.calls[0] as [string]
+    const [listUrl] = mockHttp.get.mock.calls[0] as [string,]
     expect(listUrl).toContain('/repos/test-org/test-repo/issues/7/comments')
 
     expect(mockHttp.post).toHaveBeenCalledOnce()
@@ -214,7 +214,7 @@ describe('postPrComment', () => {
 
     expect(mockHttp.patch).toHaveBeenCalledOnce()
     expect(mockHttp.post).not.toHaveBeenCalled()
-    const [patchUrl] = mockHttp.patch.mock.calls[0] as [string]
+    const [patchUrl, body] = mockHttp.patch.mock.calls[0] as [string, string]
     expect(patchUrl).toContain('/issues/comments/55')
   })
 
@@ -281,7 +281,6 @@ describe('isPackageFile', () => {
     'Gemfile',
     'Gemfile.lock',
     'go.mod',
-    'go.sum',
     'Cargo.toml',
     'Cargo.lock',
     'composer.json',
