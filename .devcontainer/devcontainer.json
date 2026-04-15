@@ -2,6 +2,7 @@
   "name": "Ubuntu",
   "image": "mcr.microsoft.com/devcontainers/base:noble",
   "features": {
+    "ghcr.io/devcontainers/features/node:1": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "moby": true,
       "azureDnsAutoDetection": true,
@@ -31,5 +32,12 @@
     "source=${localEnv:HOME}/.gnupg,target=/home/vscode/.gnupg,type=bind,consistency=cached",
     "source=${localEnv:HOME}/.bash_aliases,target=/home/vscode/.bash_aliases,type=bind,readonly",
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
-  ]
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vitest.explorer"
+      ]
+    }
+  }
 }
