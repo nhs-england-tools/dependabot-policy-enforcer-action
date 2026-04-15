@@ -8,7 +8,9 @@
 
 import * as core from "@actions/core";
 import { sendPolicyRequest } from "./lib/request.js";
-import { postPrComment, extractPrNumber, getChangedFiles, isPackageFile } from "./lib/comment.js";
+import { postPrComment } from "./lib/comment.js";
+import { extractPrNumber } from "./lib/github.js";
+import { getChangedFiles, isPackageFile } from "./lib/filecheck.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",

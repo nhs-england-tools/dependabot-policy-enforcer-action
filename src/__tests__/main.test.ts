@@ -36,15 +36,21 @@ vi.mock("../../src/lib/request.js", () => ({
   sendPolicyRequest: mockSendPolicyRequest,
 }));
 
-vi.mock("../../src/lib/comment.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/lib/comment.js")>();
+vi.mock("../../src/lib/comment.js", () => ({
+  postPrComment: mockPostPrComment,
+}));
+
+vi.mock("../../src/lib/filecheck.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/lib/filecheck.js")>();
   return {
-    extractPrNumber: vi.fn().mockReturnValue(null),
-    postPrComment: mockPostPrComment,
     getChangedFiles: mockGetChangedFiles,
     isPackageFile: actual.isPackageFile,
   };
 });
+
+vi.mock("../../src/lib/github.js", () => ({
+  extractPrNumber: vi.fn().mockReturnValue(null),
+}));
 
 // Import run — the top-level run() call in main.ts will execute with mocked deps
 // which is fine since all mocks return undefined/empty by default
@@ -408,8 +414,8 @@ describe("PR comment integration", () => {
 
     mockPostPrComment.mockResolvedValue(undefined);
 
-    const commentMod = await import("../../src/lib/comment.js");
-    mockExtractPrNumber = commentMod.extractPrNumber as ReturnType<
+    const githubMod = await import("../../src/lib/github.js");
+    mockExtractPrNumber = githubMod.extractPrNumber as ReturnType<
       typeof vi.fn
     >;
     mockExtractPrNumber.mockReturnValue(12);
@@ -561,8 +567,8 @@ describe("Package file change detection in enforce mode", () => {
     mockPostPrComment.mockResolvedValue(undefined);
     mockGetChangedFiles.mockResolvedValue([]);
 
-    const commentMod = await import("../../src/lib/comment.js");
-    mockExtractPrNumber = commentMod.extractPrNumber as ReturnType<typeof vi.fn>;
+    const githubMod = await import("../../src/lib/github.js");
+    mockExtractPrNumber = githubMod.extractPrNumber as ReturnType<typeof vi.fn>;
     mockExtractPrNumber.mockReturnValue(7);
   });
 
