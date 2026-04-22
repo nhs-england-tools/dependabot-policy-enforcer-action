@@ -8,7 +8,7 @@
 
 import * as core from "@actions/core";
 import { sendPolicyRequest } from "./lib/request.js";
-import { postPrComment } from "./lib/comment.js";
+import { postPrComment, type PolicyStatus } from "./lib/comment.js";
 import { extractPrNumber } from "./lib/github.js";
 import { getChangedFiles, isDependencyUpdate } from "./lib/filecheck.js";
 
@@ -131,6 +131,7 @@ export async function run(): Promise<void> {
         process.env.GITHUB_REF,
       );
       let passed = mode === "report" ? true : body.pipelinePasses === true;
+      let status: PolicyStatus = passed ? 'passed' : 'failed';
 
       // ---------------------------------------------------------------
       // 6a. Package-file exemption (enforce mode only)
@@ -152,6 +153,7 @@ export async function run(): Promise<void> {
           const files = await getChangedFiles(githubToken, owner, repoName, prNumber);
           if (files.some(isDependencyUpdate)) {
             passed = true;
+            status = 'exempted';
             core.info(
               `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package or github action files. Allowing step to succeed.${LOG_STYLE.reset}. \n` +
               `Please review the policy summary and ensure the PR is fixing a vulnerability or updating dependencies appropriately. \n` +
@@ -183,7 +185,7 @@ export async function run(): Promise<void> {
       // Post a PR comment if the github-token is provided, regardless of pass/fail, but only for "pull_request" events
       if (githubToken) {
         try {
-          await postPrComment(githubToken, repo, prNumber, body, passed, mode);
+          await postPrComment(githubToken, repo, prNumber, body, status, mode);
         } catch (commentError) {
           const commentMsg =
             commentError instanceof Error

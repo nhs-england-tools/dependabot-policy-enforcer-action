@@ -19913,8 +19913,8 @@ async function sendPolicyRequest(opts) {
 // src/lib/comment.ts
 var import_http_client2 = __toESM(require_lib(), 1);
 var COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
-function buildCommentBody(passed, policy, mode, url) {
-  const statusLine = passed ? "**Status:** \u2705 Passed" : "**Status:** \u274C Failed";
+function buildCommentBody(status, policy, mode, url) {
+  const statusLine = status === "passed" ? "**Status:** \u2705 Passed" : status === "exempted" ? "**Status:** \u26A0\uFE0F Exempted \u2014 dependency update detected" : "**Status:** \u274C Failed";
   const lines = [COMMENT_MARKER, "## \u{1F916} Dependabot Policy Check", "", statusLine];
   const modeLine = `**Mode:** ${mode}`;
   lines.push(modeLine);
@@ -19999,11 +19999,11 @@ async function upsertPrComment(opts, body) {
     await createPrComment(opts, body);
   }
 }
-async function postPrComment(githubToken, repo, prNumber, body, passed, mode) {
+async function postPrComment(githubToken, repo, prNumber, body, status, mode) {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split("/");
     const url = `https://github.com/${owner}/${repoName}/security/dependabot`;
-    const commentBody = buildCommentBody(passed, body, mode, url);
+    const commentBody = buildCommentBody(status, body, mode, url);
     await upsertPrComment(
       { token: githubToken, owner, repo: repoName, prNumber },
       commentBody
@@ -20173,12 +20173,14 @@ async function run() {
         process.env.GITHUB_REF
       );
       let passed = mode === "report" ? true : body.pipelinePasses === true;
+      let status = passed ? "passed" : "failed";
       if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
         try {
           const [owner, repoName] = repo.split("/");
           const files = await getChangedFiles(githubToken, owner, repoName, prNumber);
           if (files.some(isDependencyUpdate)) {
             passed = true;
+            status = "exempted";
             core.info(
               `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package or github action files. Allowing step to succeed.${LOG_STYLE.reset}. 
 Please review the policy summary and ensure the PR is fixing a vulnerability or updating dependencies appropriately. 
@@ -20207,7 +20209,7 @@ ${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null,
       }
       if (githubToken) {
         try {
-          await postPrComment(githubToken, repo, prNumber, body, passed, mode);
+          await postPrComment(githubToken, repo, prNumber, body, status, mode);
         } catch (commentError) {
           const commentMsg = commentError instanceof Error ? commentError.message : String(commentError);
           core.warning(`Failed to post PR comment: ${commentMsg}`);
