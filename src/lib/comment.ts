@@ -25,8 +25,13 @@ export interface PolicyResponse {
 }
 
 
-export function buildCommentBody(passed: boolean, policy: PolicyResponse, mode: string, url: string): string {
-  const statusLine = passed ? '**Status:** ✅ Passed' : '**Status:** ❌ Failed'
+export type PolicyStatus = 'passed' | 'failed' | 'exempted' // expempted = failed but dependency update  was detected
+
+export function buildCommentBody(status: PolicyStatus, policy: PolicyResponse, mode: string, url: string): string {
+  const statusLine =
+    status === 'passed'   ? '**Status:** ✅ Passed' :
+    status === 'exempted' ? '**Status:** ⚠️ Exempted — dependency update detected' :
+                            '**Status:** ❌ Failed'
   const lines: string[] = [COMMENT_MARKER, '## 🤖 Dependabot Policy Check', '', statusLine]
 
   const modeLine = `**Mode:** ${mode}`
@@ -148,11 +153,11 @@ async function upsertPrComment(opts: CommentOptions, body: string): Promise<void
   }
 }
 
-export async function postPrComment(githubToken: string, repo: string, prNumber: number | null, body: PolicyResponse, passed: boolean, mode: string): Promise<void> {
+export async function postPrComment(githubToken: string, repo: string, prNumber: number | null, body: PolicyResponse, status: PolicyStatus, mode: string): Promise<void> {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split('/')
     const url = `https://github.com/${owner}/${repoName}/security/dependabot`
-    const commentBody = buildCommentBody(passed, body, mode, url)
+    const commentBody = buildCommentBody(status, body, mode, url)
     await upsertPrComment(
       { token: githubToken, owner, repo: repoName, prNumber },
       commentBody,

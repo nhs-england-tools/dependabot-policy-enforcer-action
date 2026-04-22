@@ -440,7 +440,7 @@ describe("PR comment integration", () => {
     expect(call[0]).toBe("gha-token-abc");     // githubToken
     expect(call[1]).toBe("test-org/test-repo"); // repo
     expect(call[2]).toBe(12);                   // prNumber
-    expect(call[4]).toBe(true);                 // passed
+    expect(call[4]).toBe('passed');              // status
     expect(call[5]).toBe("enforce");             // mode
   });
 
@@ -513,7 +513,7 @@ describe("PR comment integration", () => {
     await run();
 
     expect(mockPostPrComment).toHaveBeenCalledOnce();
-    expect(mockPostPrComment.mock.calls[0][4]).toBe(false); // passed = false
+    expect(mockPostPrComment.mock.calls[0][4]).toBe('failed'); // status = failed
     expect(mockSetFailed).toHaveBeenCalled();
   });
 
@@ -578,15 +578,14 @@ describe("Package file change detection in enforce mode", () => {
     process.env = originalEnv;
   });
 
-  it("should not call setFailed when package files have been changed", async () => {
+  it("should not call setFailed and should pass status 'exempted' to postPrComment when package files are changed", async () => {
     mockGetChangedFiles.mockResolvedValue(["package.json", "src/index.ts"]);
 
     await run();
 
-    expect(mockGetChangedFiles).toHaveBeenCalledWith(
-      "gha-token-abc", "test-org", "test-repo", 7,
-    );
     expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockPostPrComment).toHaveBeenCalledOnce();
+    expect(mockPostPrComment.mock.calls[0][4]).toBe('exempted');
   });
 
   it("should not call setFailed when a github workflow file has been changed", async () => {
