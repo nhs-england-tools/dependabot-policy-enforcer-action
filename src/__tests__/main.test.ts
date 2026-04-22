@@ -45,6 +45,8 @@ vi.mock("../../src/lib/filecheck.js", async (importOriginal) => {
   return {
     getChangedFiles: mockGetChangedFiles,
     isPackageFile: actual.isPackageFile,
+    isActionFile: actual.isActionFile,
+    isDependencyUpdate: actual.isDependencyUpdate,
   };
 });
 
@@ -587,13 +589,29 @@ describe("Package file change detection in enforce mode", () => {
     expect(mockSetFailed).not.toHaveBeenCalled();
   });
 
+  it("should not call setFailed when a github workflow file has been changed", async () => {
+    mockGetChangedFiles.mockResolvedValue([".github/workflows/ci.yml", "src/index.ts"]);
+
+    await run();
+
+    expect(mockSetFailed).not.toHaveBeenCalled();
+  });
+
+  it("should not call setFailed when an action definition file has been changed", async () => {
+    mockGetChangedFiles.mockResolvedValue([".github/actions/my-action/action.yml"]);
+
+    await run();
+
+    expect(mockSetFailed).not.toHaveBeenCalled();
+  });
+
   it("should log summary info when package files have been changed", async () => {
     mockGetChangedFiles.mockResolvedValue(["yarn.lock"]);
 
     await run();
 
     const infoMessages = mockInfo.mock.calls.map((args: unknown[]) => String(args[0])).join("\n");
-    expect(infoMessages).toContain("This PR changes dependency package files. Allowing step to succeed.");
+    expect(infoMessages).toContain("This PR changes dependency package or github action files. Allowing step to succeed.");
     expect(infoMessages).toContain("Summary");
     expect(infoMessages).toContain('"totalOpenAlerts": 3');
 

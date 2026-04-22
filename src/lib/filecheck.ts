@@ -51,6 +51,11 @@ const PACKAGE_FILE_NAMES = new Set([
 
 const PACKAGE_FILE_EXTENSIONS = ['.gemspec', '.csproj', '.fsproj', '.vbproj']
 
+const ACTION_FILE_PREFIXES = [
+  '.github/actions/',
+  '.github/workflows/',
+]
+
 export interface PrFile {
   filename: string
   status: string
@@ -65,6 +70,23 @@ export function isPackageFile(filename: string): boolean {
   if (PACKAGE_FILE_NAMES.has(base)) return true
   if (/^requirements.*\.txt$/.test(base)) return true
   return PACKAGE_FILE_EXTENSIONS.some(ext => base.endsWith(ext))
+}
+
+/**
+ * Returns true when the given file path is inside the .github/actions or
+ * .github/workflows directories, indicating a GitHub Actions definition change.
+ */
+export function isActionFile(filename: string): boolean {
+  return ACTION_FILE_PREFIXES.some(prefix => filename.startsWith(prefix))
+}
+
+/**
+ * Returns true when the file is either a package/dependency management file
+ * or a GitHub Actions definition file — i.e. the PR could be fixing a
+ * vulnerable dependency or action.
+ */
+export function isDependencyUpdate(filename: string): boolean {
+  return isPackageFile(filename) || isActionFile(filename)
 }
 
 /**

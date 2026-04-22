@@ -10,7 +10,7 @@ import * as core from "@actions/core";
 import { sendPolicyRequest } from "./lib/request.js";
 import { postPrComment } from "./lib/comment.js";
 import { extractPrNumber } from "./lib/github.js";
-import { getChangedFiles, isPackageFile } from "./lib/filecheck.js";
+import { getChangedFiles, isDependencyUpdate } from "./lib/filecheck.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",
@@ -150,10 +150,10 @@ export async function run(): Promise<void> {
         try {
           const [owner, repoName] = repo.split("/");
           const files = await getChangedFiles(githubToken, owner, repoName, prNumber);
-          if (files.some(isPackageFile)) {
+          if (files.some(isDependencyUpdate)) {
             passed = true;
             core.info(
-              `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package files. Allowing step to succeed.${LOG_STYLE.reset}. \n` +
+              `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package or github action files. Allowing step to succeed.${LOG_STYLE.reset}. \n` +
               `Please review the policy summary and ensure the PR is fixing a vulnerability or updating dependencies appropriately. \n` +
               `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
             );

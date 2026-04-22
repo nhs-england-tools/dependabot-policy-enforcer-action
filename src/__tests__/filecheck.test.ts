@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { isPackageFile, getChangedFiles } from '../../src/lib/filecheck.js'
+import { isPackageFile, isActionFile, isDependencyUpdate, getChangedFiles } from '../../src/lib/filecheck.js'
 
 // ---------------------------------------------------------------------------
 // Mock @actions/http-client
@@ -106,13 +106,76 @@ describe('isPackageFile', () => {
   it('should return false for a workflow YAML file', () => {
     expect(isPackageFile('.github/workflows/ci.yml')).toBe(false)
   })
-
   it('should return false for a README', () => {
     expect(isPackageFile('README.md')).toBe(false)
   })
 
   it('should return false for a file named requirements-notes.md', () => {
     expect(isPackageFile('requirements-notes.md')).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isActionFile
+// ---------------------------------------------------------------------------
+
+describe('isActionFile', () => {
+  it('should return true for a file inside .github/workflows/', () => {
+    expect(isActionFile('.github/workflows/ci.yml')).toBe(true)
+  })
+
+  it('should return true for a file inside .github/actions/', () => {
+    expect(isActionFile('.github/actions/my-action/action.yml')).toBe(true)
+  })
+
+  it('should return true for a nested file deep in .github/workflows/', () => {
+    expect(isActionFile('.github/workflows/sub/deploy.yaml')).toBe(true)
+  })
+
+  it('should return false for a file in .github/ but not actions or workflows', () => {
+    expect(isActionFile('.github/CODEOWNERS')).toBe(false)
+  })
+
+  it('should return false for a package file', () => {
+    expect(isActionFile('package.json')).toBe(false)
+  })
+
+  it('should return false for a source file', () => {
+    expect(isActionFile('src/index.ts')).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// isDependencyUpdate
+// ---------------------------------------------------------------------------
+
+describe('isDependencyUpdate', () => {
+  it('should return true for a package file', () => {
+    expect(isDependencyUpdate('package.json')).toBe(true)
+  })
+
+  it('should return true for a lock file', () => {
+    expect(isDependencyUpdate('yarn.lock')).toBe(true)
+  })
+
+  it('should return true for a workflow file', () => {
+    expect(isDependencyUpdate('.github/workflows/ci.yml')).toBe(true)
+  })
+
+  it('should return true for an action definition file', () => {
+    expect(isDependencyUpdate('.github/actions/my-action/action.yml')).toBe(true)
+  })
+
+  it('should return false for a source file', () => {
+    expect(isDependencyUpdate('src/index.ts')).toBe(false)
+  })
+
+  it('should return false for a README', () => {
+    expect(isDependencyUpdate('README.md')).toBe(false)
+  })
+
+  it('should return false for a file in .github/ outside actions and workflows', () => {
+    expect(isDependencyUpdate('.github/CODEOWNERS')).toBe(false)
   })
 })
 
