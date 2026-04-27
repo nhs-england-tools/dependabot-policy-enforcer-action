@@ -20013,12 +20013,12 @@ async function run() {
       const passed = mode === "report" ? true : body.pipelinePasses === true;
       if (!passed) {
         setFailed(
-          `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset}
+          `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} 
 ${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
         );
       } else if (passed && body.message) {
         info(
-          `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${body.message}
+          `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${body.message} 
 ${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
         );
       } else {
