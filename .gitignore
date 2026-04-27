@@ -16,6 +16,7 @@ node_modules/
 
 # Yarn PnP - generated files, should not be committed (not using Zero-Installs)
 .pnp.*
+.yarn/cache
 .yarn/install-state.gz
 .yarn/unplugged
 coverage/
