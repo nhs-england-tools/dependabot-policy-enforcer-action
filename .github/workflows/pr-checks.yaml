@@ -1,0 +1,42 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, reopened, edited]
+    branches:
+      - main
+
+jobs:
+  pr-title-check:
+    permissions:
+      contents: read
+      pull-requests: read
+    name: Check PR title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Check PR title
+        uses: ./.github/actions/pr-title-checker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  pr-body-check:
+    permissions:
+      contents: read
+      pull-requests: read
+    name: Check PR body
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Check PR body
+        uses: ./.github/actions/pr-body-checker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
