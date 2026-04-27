@@ -129,7 +129,7 @@ The `mode` input controls how the action responds to policy violations:
 | Mode | Behaviour |
 | ---- | --------- |
 | `enforce` | Fails the workflow check when the repository does not meet the Dependabot policy. This is the default. |
-| `report` | Logs the policy result as a warning but always passes the workflow check. Use this during initial rollout to observe results without blocking merges. |
+| `report` | Logs the policy result as a warning but always passes the workflow check. Use this during initial roll-out to observe results without blocking merges. |
 
 Set the mode centrally via an organisation variable (`DEPENDABOT_ENFORCER_MODE`) so that all repositories share the same default. Individual repositories can override it with a repository-level variable of the same name.
 
