@@ -11,11 +11,11 @@
     "hmac-helper": "tsx scripts/hmac-helper.ts"
   },
   "dependencies": {
-    "@actions/core": "^1.11.1",
-    "@actions/http-client": "^2.2.3"
+    "@actions/core": "^3.0.0",
+    "@actions/http-client": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^25.5.0",
     "esbuild": "^0.25.0",
     "tsx": "^4.0.0",
     "typescript": "^5.8.0",
