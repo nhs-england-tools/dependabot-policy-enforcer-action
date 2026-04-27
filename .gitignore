@@ -19,3 +19,8 @@ node_modules/
 .yarn/install-state.gz
 .yarn/unplugged
 coverage/
+
+# Temp files
+tmp/
+temp/
+
