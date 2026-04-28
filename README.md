@@ -91,6 +91,8 @@ jobs:
         with:
           api-endpoint: ${{ vars.DEPENDABOT_ENFORCER_API_ENDPOINT }}
           secret: ${{ secrets.DEPENDABOT_ENFORCER_SECRET }}
+          mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### Inputs
@@ -99,7 +101,9 @@ jobs:
 |-------|----------|---------|-------------|
 | `api-endpoint` | Yes | — | Full URL of the Dependabot Policy Enforcer API endpoint. Set this as an organisation or repository variable (`vars.DEPENDABOT_ENFORCER_API_ENDPOINT`). |
 | `secret` | Yes | — | Shared HMAC secret for this repository. Must be stored as a repository secret (`secrets.DEPENDABOT_ENFORCER_SECRET`). **Never hardcode this value.** |
+| `mode` | No | `enforce` | Policy mode: `enforce` (fail workflow on policy violation) or `report` (log warnings but do not fail). |
 | `timeout-ms` | No | `10000` | Request timeout in milliseconds. |
+| `github-token` | No | — | GitHub Token for PR comment addition. |
 
 ### Outputs
 
@@ -113,13 +117,13 @@ jobs:
 Run the test suite:
 
 ```shell
-yarn test --run
+yarn test --typecheck --run
 ```
 
 Run with coverage:
 
 ```shell
-yarn test --run --coverage
+yarn test --typecheck --run --coverage
 ```
 
 A helper script is included at `scripts/hmac-helper.ts` to assist with local testing and signature verification. The core functions (`hmacHex`, `generateSignature`, `verifySignature`) are the reference implementation of the signing algorithm, providing a vetted starting point and enabling debugging of signature failures before raising a pull request:

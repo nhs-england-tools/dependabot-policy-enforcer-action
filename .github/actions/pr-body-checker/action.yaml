@@ -1,0 +1,63 @@
+name: "Check PR Body"
+description: "Check that the PR body has been filled in and is not just the template placeholder text"
+runs:
+  using: "composite"
+  steps:
+    - name: "Check PR body"
+      shell: bash
+      run: |
+        set -e
+
+        PR_NUMBER=$(jq -r '.pull_request.number' "$GITHUB_EVENT_PATH")
+        PR_LABELS=$(gh pr view "$PR_NUMBER" --json labels | jq -r '.labels[].name')
+        PR_BODY=$(gh pr view "$PR_NUMBER" --json body | jq -r '.body')
+
+        if echo "$PR_LABELS" | grep -q "dependencies"; then
+          echo "PR has dependencies label, skipping body check"
+          exit 0
+        fi
+
+        ERRORS=()
+
+        # Normalise line endings — GitHub may return \r\n
+        PR_BODY=$(echo "$PR_BODY" | sed 's/\r$//')
+
+        check_section() {
+          local heading="$1"
+
+          if ! echo "$PR_BODY" | grep -q "^## ${heading}"; then
+            ERRORS+=("Missing section: '## ${heading}'")
+            return
+          fi
+
+          # Extract content between this heading and the next ## heading (or end of string),
+          # then strip blank lines, single-line HTML comments (with optional surrounding
+          # whitespace), multi-line HTML comments, and invisible unicode characters
+          # (non-breaking spaces, zero-width spaces, etc.).
+          local content
+          content=$(echo "$PR_BODY" \
+            | awk "/^## ${heading}/{found=1; next} found && /^## /{exit} found{print}" \
+            | sed '/^[[:space:]]*$/d' \
+            | sed '/^[[:space:]]*<!--.*-->[[:space:]]*$/d' \
+            | sed '/^[[:space:]]*<!--/,/-->[[:space:]]*$/d' \
+            | sed 's/\xC2\xA0//g; s/\xE2\x80\x8B//g' \
+            | sed '/^[[:space:]]*$/d')
+
+          if [ -z "$content" ]; then
+            ERRORS+=("Section '## ${heading}' has not been filled in")
+          fi
+        }
+
+        check_section "Description"
+        check_section "Testing carried out"
+        check_section "QA testing instructions"
+
+        if [ ${#ERRORS[@]} -gt 0 ]; then
+          echo "PR body validation failed:"
+          for error in "${ERRORS[@]}"; do
+            echo "  - $error"
+          done
+          exit 1
+        fi
+
+        echo "PR body is valid"

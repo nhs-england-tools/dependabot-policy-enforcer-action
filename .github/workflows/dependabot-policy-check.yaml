@@ -2,6 +2,8 @@ name: Dependabot Policy Check
 
 on:
   push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:   # lets you trigger it manually from the GitHub UI
 
@@ -14,3 +16,5 @@ jobs:
         with:
           api-endpoint: ${{ secrets.DEPENDABOT_ENFORCER_API_ENDPOINT }}
           secret: ${{ secrets.DEPENDABOT_ENFORCER_SECRET }}
+          mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}

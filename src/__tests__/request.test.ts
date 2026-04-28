@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import http from 'node:http'
-import { sendPolicyRequest, truncateBody } from '../../src/lib/request.js'
+import { sendPolicyRequest } from '../../src/lib/request.js'
 import { hmacHex } from '../../src/lib/signing.js'
 
 describe('sendPolicyRequest', () => {
@@ -52,6 +52,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     expect(result.statusCode).toBe(200)
@@ -66,6 +67,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'verify-me',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     const timestamp = lastHeaders?.['x-hub-timestamp'] as string
@@ -77,14 +79,15 @@ describe('sendPolicyRequest', () => {
     expect(sigHex).toBe(expectedHex)
   })
 
-  it('should send {"action":"check"} as request body', async () => {
+  it('should send action and mode as request body', async () => {
     await sendPolicyRequest({
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
-    expect(JSON.parse(lastBody)).toEqual({ action: 'check' })
+    expect(JSON.parse(lastBody)).toEqual({ action: 'check', mode: 'enforce' })
   })
 
   it('should return status code and body on success', async () => {
@@ -95,6 +98,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     expect(result.statusCode).toBe(200)
@@ -110,25 +114,13 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     expect(result.statusCode).toBe(403)
     expect(result.body).toContain('FORBIDDEN_REPO')
   })
 
-  it('should truncate response bodies exceeding 2000 chars', async () => {
-    nextStatus = 200
-    nextResponseBody = { data: 'x'.repeat(3000) }
-
-    const result = await sendPolicyRequest({
-      repo: 'test-org/test-repo',
-      secret: 'test-secret',
-      endpoint: endpointUrl,
-    })
-
-    expect(result.body.length).toBeLessThanOrEqual(2100) // 2000 + truncation message
-    expect(result.body).toContain('truncated')
-  })
 
   it('should handle connection errors gracefully', async () => {
     await expect(
@@ -136,6 +128,7 @@ describe('sendPolicyRequest', () => {
         repo: 'test-org/test-repo',
         secret: 'test-secret',
         endpoint: 'http://127.0.0.1:1/never-listening',
+        mode: 'enforce',
         timeoutMs: 2000,
       })
     ).rejects.toThrow()
@@ -146,6 +139,7 @@ describe('sendPolicyRequest', () => {
       repo: 'test-org/test-repo',
       secret: 'test-secret',
       endpoint: endpointUrl,
+      mode: 'enforce',
     })
 
     expect(typeof result.durationMs).toBe('number')
@@ -153,25 +147,3 @@ describe('sendPolicyRequest', () => {
   })
 })
 
-describe('truncateBody', () => {
-  it('should return the body unchanged when below the limit', () => {
-    const body = 'x'.repeat(1999)
-    expect(truncateBody(body)).toBe(body)
-  })
-
-  it('should return the body unchanged when exactly at the limit', () => {
-    const body = 'x'.repeat(2000)
-    expect(truncateBody(body)).toBe(body)
-  })
-
-  it('should truncate body exceeding the limit and append overflow message', () => {
-    const body = 'x'.repeat(2500)
-    const result = truncateBody(body)
-    expect(result).toMatch(/… \[truncated 500 chars\]$/)
-    expect(result.startsWith('x'.repeat(2000))).toBe(true)
-  })
-
-  it('should return an empty string unchanged', () => {
-    expect(truncateBody('')).toBe('')
-  })
-})

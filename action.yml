@@ -14,10 +14,22 @@ inputs:
       Must be stored as a repository secret (secrets.DEPENDABOT_ENFORCER_SECRET).
       Never hardcode this value.
     required: true
+  mode:
+    description: >-
+      Operation mode for the enforcer. Can be 'enforce' to block non-compliant PRs or 'report' to only log results.
+      Set this as an organisation or repository variable (vars.DEPENDABOT_ENFORCER_MODE).
+    required: false
+    default: "enforce"
   timeout-ms:
     description: "Request timeout in milliseconds."
     required: false
     default: "10000"
+  github-token:
+    description: >-
+      GitHub token used to post a policy summary comment on the pull request.
+      Use the built-in secrets.GITHUB_TOKEN. If omitted, no PR comment is posted.
+    required: false
+    default: ""
 
 outputs:
   status-code:

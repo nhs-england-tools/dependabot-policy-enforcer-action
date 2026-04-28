@@ -32,7 +32,6 @@ import {
   generateInvalidSignature,
   validateRequiredOptions,
 } from '../src/lib/signing.js'
-import { truncateBody } from '../src/lib/request.js'
 
 // Re-export for consumers of this module
 export {
@@ -319,7 +318,7 @@ export async function handleRequest(opts: RequestHandlerOptions): Promise<Execut
     timeoutMs,
   })
 
-  const responseBody = truncateBody(response.body.trim() || '<empty>')
+  const responseBody = response.body.trim()
   const statusLine = response.statusMessage
     ? `${response.statusCode} ${response.statusMessage}`
     : `${response.statusCode}`

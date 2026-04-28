@@ -10,4 +10,4 @@ cd "$(git rev-parse --show-toplevel)"
 # Run the Vitest unit test suite via Yarn.
 
 corepack enable
-yarn test --run
+yarn test --typecheck --run
