@@ -95,7 +95,7 @@ jobs:
   dependabot-policy:
     runs-on: ubuntu-latest
     steps:
-      - uses: nhs-england-tools/dependabot-policy-enforcer-action@v1
+      - uses: nhs-england-tools/dependabot-policy-enforcer-action@5045f77f7151cc822cf593c51356f76cf408714c # v1
         with:
           api-endpoint: ${{ vars.DEPENDABOT_ENFORCER_API_ENDPOINT }}
           secret: ${{ secrets.DEPENDABOT_ENFORCER_SECRET }}
