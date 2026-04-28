@@ -25,12 +25,14 @@ const mockHttp = vi.hoisted(() => {
 })
 
 vi.mock('@actions/http-client', () => ({
-  HttpClient: vi.fn().mockImplementation(() => ({
-    get: mockHttp.get,
-    post: mockHttp.post,
-    patch: mockHttp.patch,
-    dispose: mockHttp.dispose,
-  })),
+  HttpClient: vi.fn().mockImplementation(function () {
+    return {
+      get: mockHttp.get,
+      post: mockHttp.post,
+      patch: mockHttp.patch,
+      dispose: mockHttp.dispose,
+    }
+  }),
 }))
 
 // ---------------------------------------------------------------------------
