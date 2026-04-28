@@ -34,6 +34,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@actions/http-client@npm:^4.0.1":
+  version: 4.0.1
+  resolution: "@actions/http-client@npm:4.0.1"
+  dependencies:
+    tunnel: "npm:^0.0.6"
+    undici: "npm:^6.23.0"
+  checksum: 10c0/2470880a461e00bfeee13462f05f089542af2a6da02bfd73422c549119a5078fbf2cc0c6d3f64d4e5a9df5aeef7f0cf08925a41793c136631ac2ec55dc7a697d
+  languageName: node
+  linkType: hard
+
 "@actions/io@npm:^3.0.2":
   version: 3.0.2
   resolution: "@actions/io@npm:3.0.2"
@@ -1039,7 +1049,7 @@ __metadata:
   resolution: "dependabot-policy-enforcer-action@workspace:."
   dependencies:
     "@actions/core": "npm:^3.0.0"
-    "@actions/http-client": "npm:^4.0.0"
+    "@actions/http-client": "npm:^4.0.1"
     "@types/node": "npm:^25.5.0"
     esbuild: "npm:^0.25.0"
     tsx: "npm:^4.0.0"
