@@ -20115,7 +20115,7 @@ async function run() {
       );
       let passed = mode === "report" ? true : body.pipelinePasses === true;
       let status = passed ? "passed" : "failed";
-      if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
+      if (mode === "enforce" && githubToken && prNumber !== null) {
         try {
           const [owner, repoName] = repo.split("/");
           const dependencyUpdate = await isDependencyUpdate(githubToken, owner, repoName, prNumber);
