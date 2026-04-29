@@ -105,7 +105,7 @@ export async function isDependencyUpdate(
   const maxPages = 30;
   try {
     while (page <= maxPages) {
-      const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100&page=${page}`;
+      const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=2&page=${page}`;
       const { files, hasNextPage } = await getPageOfFiles(
         client,
         url,
