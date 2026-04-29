@@ -147,7 +147,7 @@ export async function run(): Promise<void> {
       // and the original passed=false is preserved (fail-safe default).
       // ---------------------------------------------------------------
 
-      if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
+      if (mode === "enforce" && githubToken && prNumber !== null) {
         try {
           const [owner, repoName] = repo.split("/");
           const dependencyUpdate = await isDependencyUpdate(githubToken, owner, repoName, prNumber);

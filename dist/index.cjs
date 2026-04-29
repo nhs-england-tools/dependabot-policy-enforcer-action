@@ -19996,7 +19996,7 @@ async function isDependencyUpdate(token, owner, repo, prNumber) {
   const maxPages = 30;
   try {
     while (page <= maxPages) {
-      const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100&page=${page}`;
+      const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=2&page=${page}`;
       const { files, hasNextPage } = await getPageOfFiles(
         client,
         url,
@@ -20115,7 +20115,7 @@ async function run() {
       );
       let passed = mode === "report" ? true : body.pipelinePasses === true;
       let status = passed ? "passed" : "failed";
-      if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
+      if (mode === "enforce" && githubToken && prNumber !== null) {
         try {
           const [owner, repoName] = repo.split("/");
           const dependencyUpdate = await isDependencyUpdate(githubToken, owner, repoName, prNumber);
