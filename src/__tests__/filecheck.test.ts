@@ -7,7 +7,6 @@ import {
   getPageOfFiles,
 } from "../../src/lib/filecheck.js";
 import type { HttpClient } from "@actions/http-client";
-import { error } from "node:console";
 
 // ---------------------------------------------------------------------------
 // Mock @actions/http-client
