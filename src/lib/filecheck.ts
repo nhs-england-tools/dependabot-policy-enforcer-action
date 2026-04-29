@@ -116,6 +116,9 @@ export async function isDependencyUpdate(
       if (files.some(isFileDependencyUpdate)) return true;
       if (!hasNextPage) break;
       page++;
+      if (page > maxPages) {
+        throw new Error(`PR #${prNumber} has more than ${maxPages * 100} changed files, which exceeds the maximum that can be checked for dependency updates.`);
+      }
     }
   } finally {
     client.dispose();

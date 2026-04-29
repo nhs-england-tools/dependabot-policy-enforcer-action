@@ -418,11 +418,13 @@ describe("isDependencyUpdate", () => {
   it("should stop after 30 pages of results", async () => {
     const files = [{ filename: "index.js", status: "modified" }];
     const link = '<https://api.github.com/.../files?page=2>; rel="next"';
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 29; i++) {
       mockHttp.get.mockResolvedValueOnce(
         makeResponse(200, JSON.stringify(files), { link }),
       );
     }
+    mockHttp.get.mockResolvedValueOnce(makeResponse(200, JSON.stringify(files), {link: ""}));
+
     const result = await isDependencyUpdate("token", "org", "repo", 1);
     expect(result).toBe(false);
     expect(mockHttp.get).toHaveBeenCalledTimes(30);
@@ -437,6 +439,24 @@ describe("isDependencyUpdate", () => {
       );
     });
     expect(mockHttp.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("should throw if there are more than 3000 files", async () => {
+    const files = [{ filename: "index.js", status: "modified" }];
+    const link = '<https://api.github.com/.../files?page=2>; rel="next"';
+    for (let i = 0; i < 30; i++) {
+      mockHttp.get.mockResolvedValueOnce(
+        makeResponse(200, JSON.stringify(files), { link }),
+      );
+    }
+    await isDependencyUpdate("token", "org", "repo", 1).catch((e) => {
+      expect(e).toEqual(
+        new Error(
+          "PR #1 has more than 3000 changed files, which exceeds the maximum that can be checked for dependency updates.",
+        ),
+      );
+    });
+    expect(mockHttp.get).toHaveBeenCalledTimes(30);
   });
 
   it("should dispose the HttpClient after use, even if there is an error", async () => {

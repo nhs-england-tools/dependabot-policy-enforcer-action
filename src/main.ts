@@ -10,7 +10,7 @@ import * as core from "@actions/core";
 import { sendPolicyRequest } from "./lib/request.js";
 import { postPrComment, type PolicyStatus } from "./lib/comment.js";
 import { extractPrNumber } from "./lib/github.js";
-import {isDependencyUpdate } from "./lib/filecheck.js";
+import {isDependencyUpdate} from "./lib/filecheck.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",
@@ -160,9 +160,9 @@ export async function run(): Promise<void> {
               `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
             );
           }
-        } catch (filesError) {
-          const filesMsg = filesError instanceof Error ? filesError.message : String(filesError);
-          core.warning(`Failed to check PR changed files: ${filesMsg}`);
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : "Unknown error";
+          core.warning(`Failed to check PR changed files: ${msg}`);
         }
       }
 
