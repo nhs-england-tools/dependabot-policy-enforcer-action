@@ -6,9 +6,7 @@
  */
 
 import { HttpClient } from '@actions/http-client'
-
-const USER_AGENT = 'dependabot-policy-enforcer-action'
-const GITHUB_API_BASE = 'https://api.github.com'
+import { githubHeaders, USER_AGENT, GITHUB_API_BASE } from './github.js'
 
 /** HTML marker embedded in every comment body, used to find and update it. */
 export const COMMENT_MARKER = '<!-- dependabot-policy-enforcer -->'
@@ -26,19 +24,14 @@ export interface PolicyResponse {
   message?: string
 }
 
-// ---------------------------------------------------------------------------
-// Pure helpers
-// ---------------------------------------------------------------------------
 
-export function extractPrNumber(eventName?: string, ref?: string): number | null {
-  if (!eventName || !ref) return null
-  if (eventName !== 'pull_request' && eventName !== 'pull_request_target') return null
-  const m = /refs\/pull\/(\d+)\//.exec(ref)
-  return m ? Number.parseInt(m[1], 10) : null
-}
+export type PolicyStatus = 'passed' | 'failed' | 'exempted' // Exempted = failed but dependency update  was detected
 
-export function buildCommentBody(passed: boolean, policy: PolicyResponse, mode: string, url: string): string {
-  const statusLine = passed ? '**Status:** ✅ Passed' : '**Status:** ❌ Failed'
+export function buildCommentBody(status: PolicyStatus, policy: PolicyResponse, mode: string, url: string): string {
+  const statusLine =
+    status === 'passed'   ? '**Status:** ✅ Passed' :
+    status === 'exempted' ? '**Status:** ⚠️ Exempted — dependency update detected' :
+                            '**Status:** ❌ Failed'
   const lines: string[] = [COMMENT_MARKER, '## 🤖 Dependabot Policy Check', '', statusLine]
 
   const modeLine = `**Mode:** ${mode}`
@@ -78,16 +71,8 @@ export interface CommentOptions {
 }
 
 // ---------------------------------------------------------------------------
-// GitHub API calls
+// GitHub API calls — PR comments
 // ---------------------------------------------------------------------------
-
-function githubHeaders(token: string): Record<string, string> {
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
-  }
-}
 
 async function listPrComments(opts: CommentOptions): Promise<GithubComment[]> {
   const { token, owner, repo, prNumber } = opts
@@ -168,11 +153,11 @@ async function upsertPrComment(opts: CommentOptions, body: string): Promise<void
   }
 }
 
-export async function postPrComment(githubToken: string, repo: string, prNumber: number | null, body: PolicyResponse, passed: boolean, mode: string): Promise<void> {
+export async function postPrComment(githubToken: string, repo: string, prNumber: number | null, body: PolicyResponse, status: PolicyStatus, mode: string): Promise<void> {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split('/')
     const url = `https://github.com/${owner}/${repoName}/security/dependabot`
-    const commentBody = buildCommentBody(passed, body, mode, url)
+    const commentBody = buildCommentBody(status, body, mode, url)
     await upsertPrComment(
       { token: githubToken, owner, repo: repoName, prNumber },
       commentBody,

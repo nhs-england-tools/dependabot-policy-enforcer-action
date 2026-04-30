@@ -10,6 +10,7 @@ const {
   mockWarning,
   mockSendPolicyRequest,
   mockPostPrComment,
+  mockIsDependencyUpdate,
 } = vi.hoisted(() => ({
   mockGetInput: vi.fn(),
   mockSetSecret: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockWarning: vi.fn(),
   mockSendPolicyRequest: vi.fn(),
   mockPostPrComment: vi.fn(),
+  mockIsDependencyUpdate: vi.fn(),
 }));
 
 vi.mock("@actions/core", () => ({
@@ -35,13 +37,22 @@ vi.mock("../../src/lib/request.js", () => ({
 }));
 
 vi.mock("../../src/lib/comment.js", () => ({
-  extractPrNumber: vi.fn().mockReturnValue(null),
   postPrComment: mockPostPrComment,
+}));
+
+vi.mock("../../src/lib/filecheck.js", () => ({
+  isDependencyUpdate: mockIsDependencyUpdate,
+}));
+
+vi.mock("../../src/lib/github.js", () => ({
+  extractPrNumber: vi.fn().mockReturnValue(null),
 }));
 
 // Import run — the top-level run() call in main.ts will execute with mocked deps
 // which is fine since all mocks return undefined/empty by default
 import { run } from "../../src/main.js";
+import { isDependencyUpdate } from "../../src/lib/filecheck.js";
+import { mock } from "node:test";
 
 describe("Action Entry Point (run)", () => {
   const originalEnv = process.env;
@@ -401,8 +412,8 @@ describe("PR comment integration", () => {
 
     mockPostPrComment.mockResolvedValue(undefined);
 
-    const commentMod = await import("../../src/lib/comment.js");
-    mockExtractPrNumber = commentMod.extractPrNumber as ReturnType<
+    const githubMod = await import("../../src/lib/github.js");
+    mockExtractPrNumber = githubMod.extractPrNumber as ReturnType<
       typeof vi.fn
     >;
     mockExtractPrNumber.mockReturnValue(12);
@@ -425,7 +436,7 @@ describe("PR comment integration", () => {
     expect(call[0]).toBe("gha-token-abc");     // githubToken
     expect(call[1]).toBe("test-org/test-repo"); // repo
     expect(call[2]).toBe(12);                   // prNumber
-    expect(call[4]).toBe(true);                 // passed
+    expect(call[4]).toBe('passed');              // status
     expect(call[5]).toBe("enforce");             // mode
   });
 
@@ -498,7 +509,7 @@ describe("PR comment integration", () => {
     await run();
 
     expect(mockPostPrComment).toHaveBeenCalledOnce();
-    expect(mockPostPrComment.mock.calls[0][4]).toBe(false); // passed = false
+    expect(mockPostPrComment.mock.calls[0][4]).toBe('failed'); // status = failed
     expect(mockSetFailed).toHaveBeenCalled();
   });
 
@@ -513,5 +524,148 @@ describe("PR comment integration", () => {
     ]) {
       expect(String(call[0])).not.toContain("gha-token-abc");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Package file change detection in enforce mode
+// ---------------------------------------------------------------------------
+
+describe("Package file change detection in enforce mode", () => {
+  let mockExtractPrNumber: ReturnType<typeof vi.fn>;
+  const originalEnv = process.env;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    process.env = {
+      ...originalEnv,
+      GITHUB_REPOSITORY: "test-org/test-repo",
+      GITHUB_EVENT_NAME: "pull_request",
+      GITHUB_REF: "refs/pull/7/merge",
+    };
+
+    mockGetInput.mockImplementation((name: string) => {
+      switch (name) {
+        case "secret": return "test-secret-value";
+        case "api-endpoint": return "https://api.example.com/check";
+        case "mode": return "enforce";
+        case "timeout-ms": return "10000";
+        case "github-token": return "gha-token-abc";
+        default: return "";
+      }
+    });
+
+    // Policy response — pipelinePasses is false to trigger the guard
+    mockSendPolicyRequest.mockResolvedValue({
+      statusCode: 200,
+      body: '{"pipelinePasses":false,"summary":{"totalOpenAlerts":3}}',
+      durationMs: 20,
+    });
+
+    mockPostPrComment.mockResolvedValue(undefined);
+    mockIsDependencyUpdate.mockResolvedValue(false);
+
+    const githubMod = await import("../../src/lib/github.js");
+    mockExtractPrNumber = githubMod.extractPrNumber as ReturnType<typeof vi.fn>;
+    mockExtractPrNumber.mockReturnValue(7);
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("should not call setFailed and should pass status 'exempted' to postPrComment when package files are changed", async () => {
+    mockIsDependencyUpdate.mockResolvedValue(true);
+
+    await run();
+
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockPostPrComment).toHaveBeenCalledOnce();
+    expect(mockPostPrComment.mock.calls[0][4]).toBe('exempted');
+  });
+
+
+  it("should log summary info when package files have been changed", async () => {
+    mockIsDependencyUpdate.mockResolvedValue(true);
+
+    await run();
+
+    const infoMessages = mockInfo.mock.calls.map((args: unknown[]) => String(args[0])).join("\n");
+    expect(infoMessages).toContain("This PR changes dependency package or github action files. Allowing step to succeed.");
+    expect(infoMessages).toContain("Summary");
+    expect(infoMessages).toContain('"totalOpenAlerts": 3');
+
+  });
+
+  it("should still call setFailed when no package files are changed", async () => {
+    mockIsDependencyUpdate.mockResolvedValue(false);
+
+    await run();
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining("Policy check failed"),
+    );
+  });
+
+  it("should still call setFailed when github-token is absent", async () => {
+    mockGetInput.mockImplementation((name: string) => {
+      switch (name) {
+        case "secret": return "test-secret-value";
+        case "api-endpoint": return "https://api.example.com/check";
+        case "mode": return "enforce";
+        case "timeout-ms": return "10000";
+        case "github-token": return "";
+        default: return "";
+      }
+    });
+
+    await run();
+
+    expect(mockIsDependencyUpdate).not.toHaveBeenCalled();
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining("Policy check failed"),
+    );
+  });
+
+  it("should still call setFailed when prNumber is null", async () => {
+    mockExtractPrNumber.mockReturnValue(null);
+
+    await run();
+
+    expect(mockIsDependencyUpdate).not.toHaveBeenCalled();
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining("Policy check failed"),
+    );
+  });
+
+  it("should emit a warning and still call setFailed when getChangedFiles throws", async () => {
+    mockIsDependencyUpdate.mockRejectedValue(new Error("API rate limit"));
+
+    await run();
+
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining("API rate limit"),
+    );
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining("Policy check failed"),
+    );
+  });
+
+  it("should not apply the package-file check in report mode", async () => {
+    mockGetInput.mockImplementation((name: string) => {
+      switch (name) {
+        case "secret": return "test-secret-value";
+        case "api-endpoint": return "https://api.example.com/check";
+        case "mode": return "report";
+        case "timeout-ms": return "10000";
+        case "github-token": return "gha-token-abc";
+        default: return "";
+      }
+    });
+
+    await run();
+
+    expect(mockIsDependencyUpdate).not.toHaveBeenCalled();
+    expect(mockSetFailed).not.toHaveBeenCalled();
   });
 });
