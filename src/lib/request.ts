@@ -7,9 +7,9 @@
 
 import { HttpClient } from '@actions/http-client'
 import { generateSignature } from './signing.js'
+import { USER_AGENT } from './github.js'
 
 const MAX_BODY_LOG_LENGTH = 2_000
-const USER_AGENT = 'dependabot-policy-enforcer-action'
 
 export interface PolicyRequestOptions {
   repo: string
