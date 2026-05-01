@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
-  extractPrNumber,
   buildCommentBody,
   postPrComment,
   COMMENT_MARKER,
@@ -17,20 +16,22 @@ const mockHttp = vi.hoisted(() => {
   const readBody = vi.fn<() => Promise<string>>()
   const message = { statusCode: 200 }
   const response = { readBody, message }
-  const get = vi.fn<() => Promise<typeof response>>().mockResolvedValue(response)
-  const post = vi.fn<() => Promise<typeof response>>().mockResolvedValue(response)
-  const patch = vi.fn<() => Promise<typeof response>>().mockResolvedValue(response)
+  const get = vi.fn<(url: string, headers?: Record<string, string>) => Promise<typeof response>>().mockResolvedValue(response)
+  const post = vi.fn<(url: string, body: string, headers?: Record<string, string>) => Promise<typeof response>>()
+  const patch = vi.fn<(url: string, body: string, headers?: Record<string, string>) => Promise<typeof response>>()
 
   return { dispose, readBody, message, response, get, post, patch }
 })
 
 vi.mock('@actions/http-client', () => ({
-  HttpClient: vi.fn().mockImplementation(() => ({
-    get: mockHttp.get,
-    post: mockHttp.post,
-    patch: mockHttp.patch,
-    dispose: mockHttp.dispose,
-  })),
+  HttpClient: vi.fn().mockImplementation(function () {
+    return {
+      get: mockHttp.get,
+      post: mockHttp.post,
+      patch: mockHttp.patch,
+      dispose: mockHttp.dispose,
+    }
+  }),
 }))
 
 // ---------------------------------------------------------------------------
@@ -60,80 +61,57 @@ function makePolicy(overrides: Partial<PolicyResponse> = {}): PolicyResponse {
 }
 
 // ---------------------------------------------------------------------------
-// extractPrNumber
-// ---------------------------------------------------------------------------
-
-describe('extractPrNumber', () => {
-  it('should extract PR number from pull_request ref', () => {
-    expect(extractPrNumber('pull_request', 'refs/pull/42/merge')).toBe(42)
-  })
-
-  it('should extract PR number from pull_request_target ref', () => {
-    expect(extractPrNumber('pull_request_target', 'refs/pull/7/merge')).toBe(7)
-  })
-
-  it('should return null for push event', () => {
-    expect(extractPrNumber('push', 'refs/heads/main')).toBeNull()
-  })
-
-  it('should return null when eventName is undefined', () => {
-    expect(extractPrNumber(undefined, 'refs/pull/1/merge')).toBeNull()
-  })
-
-  it('should return null when ref is undefined', () => {
-    expect(extractPrNumber('pull_request', undefined)).toBeNull()
-  })
-
-  it('should return null when ref does not contain a PR number', () => {
-    expect(extractPrNumber('pull_request', 'refs/heads/feature')).toBeNull()
-  })
-})
-
-// ---------------------------------------------------------------------------
 // buildCommentBody
 // ---------------------------------------------------------------------------
 
 describe('buildCommentBody', () => {
   it('should include the COMMENT_MARKER', () => {
-    const body = buildCommentBody(true, makePolicy(), 'enforce', 'https://example.com/report')
+    const body = buildCommentBody('passed', makePolicy(), 'enforce', 'https://example.com/report')
     expect(body).toContain(COMMENT_MARKER)
   })
 
   it('should always start with COMMENT_MARKER', () => {
-    const body = buildCommentBody(true, makePolicy({ mode: 'report' }), 'report', 'https://example.com/report')
+    const body = buildCommentBody('passed', makePolicy({ mode: 'report' }), 'report', 'https://example.com/report')
     expect(body.startsWith(COMMENT_MARKER)).toBe(true)
   })
 
   it('should include heading', () => {
-    const body = buildCommentBody(true, makePolicy(), 'enforce', 'https://example.com/report')
+    const body = buildCommentBody('passed', makePolicy(), 'enforce', 'https://example.com/report')
     expect(body).toContain('## 🤖 Dependabot Policy Check')
   })
 
   it('should show passed status with checkmark', () => {
-    const body = buildCommentBody(true, makePolicy(), 'enforce', 'https://example.com/report')
+    const body = buildCommentBody('passed', makePolicy(), 'enforce', 'https://example.com/report')
     expect(body).toContain('✅ Passed')
     expect(body).not.toContain('❌')
   })
 
   it('should show failed status with cross', () => {
-    const body = buildCommentBody(false, makePolicy(), 'enforce', 'https://example.com/report')
+    const body = buildCommentBody('failed', makePolicy(), 'enforce', 'https://example.com/report')
     expect(body).toContain('❌ Failed')
     expect(body).not.toContain('✅')
   })
 
+  it('should show exempted status with warning', () => {
+    const body = buildCommentBody('exempted', makePolicy(), 'enforce', 'https://example.com/report')
+    expect(body).toContain('⚠️ Exempted — dependency update detected')
+    expect(body).not.toContain('✅')
+    expect(body).not.toContain('❌')
+  })
+
   it('should include ### Summary: section', () => {
-    const body = buildCommentBody(true, makePolicy(), 'enforce', 'https://example.com/report')
+    const body = buildCommentBody('passed', makePolicy(), 'enforce', 'https://example.com/report')
     expect(body).toContain('### Summary:')
   })
 
   it('should render summary entries as bullet list', () => {
-    const body = buildCommentBody(false, makePolicy({ summary: { totalOpenAlerts: 3, violatingAlerts: 1 } }), 'enforce', 'https://example.com/report')
+    const body = buildCommentBody('failed', makePolicy({ summary: { totalOpenAlerts: 3, violatingAlerts: 1 } }), 'enforce', 'https://example.com/report')
     expect(body).toContain('- **totalOpenAlerts:** 3')
     expect(body).toContain('- **violatingAlerts:** 1')
   })
 
   it('should render empty summary with no bullet items', () => {
-    const body = buildCommentBody(true, makePolicy({ summary: {} }), 'enforce', 'https://example.com/report')
+    const body = buildCommentBody('passed', makePolicy({ summary: {} }), 'enforce', 'https://example.com/report')
     const summaryIdx = body.indexOf('### Summary:')
     const violationsIdx = body.indexOf('### Violations:')
     const between = body.slice(summaryIdx, violationsIdx)
@@ -141,12 +119,12 @@ describe('buildCommentBody', () => {
   })
 
   it('should include ### Violations: section', () => {
-    const body = buildCommentBody(true, makePolicy(), 'enforce', 'https://example.com/report')
+    const body = buildCommentBody('passed', makePolicy(), 'enforce', 'https://example.com/report')
     expect(body).toContain('### Violations:')
   })
 
   it('should render violations as count bullet list', () => {
-    const body = buildCommentBody(false, makePolicy({
+    const body = buildCommentBody('failed', makePolicy({
       findings: { critical: ['a', 'b'], medium: ['c'] },
     }), 'enforce', 'https://example.com/report')
     expect(body).toContain('- **critical:** 2')
@@ -154,7 +132,7 @@ describe('buildCommentBody', () => {
   })
 
   it('should render empty violations with no bullet items', () => {
-    const body = buildCommentBody(true, makePolicy({ findings: {} }), 'enforce', 'https://example.com/report')
+    const body = buildCommentBody('passed', makePolicy({ findings: {} }), 'enforce', 'https://example.com/report')
     const violationsIdx = body.indexOf('### Violations:')
     const afterViolations = body.indexOf('### [View dependabot alerts]')
     const between = body.slice(violationsIdx, afterViolations)
@@ -178,7 +156,7 @@ describe('postPrComment', () => {
   }
 
   it('should do nothing when prNumber is null', async () => {
-    await postPrComment('tok', 'test-org/test-repo', null, VALID_BODY, true, 'enforce')
+    await postPrComment('tok', 'test-org/test-repo', null, VALID_BODY, 'passed', 'enforce')
 
     expect(mockHttp.get).not.toHaveBeenCalled()
     expect(mockHttp.post).not.toHaveBeenCalled()
@@ -189,10 +167,10 @@ describe('postPrComment', () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, '[]'))
     mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
 
-    await postPrComment('tok', 'test-org/test-repo', 7, VALID_BODY, true, 'enforce')
+    await postPrComment('tok', 'test-org/test-repo', 7, VALID_BODY, 'passed', 'enforce')
 
     expect(mockHttp.get).toHaveBeenCalledOnce()
-    const [listUrl] = mockHttp.get.mock.calls[0] as [string]
+    const [listUrl] = mockHttp.get.mock.calls[0] as [string,]
     expect(listUrl).toContain('/repos/test-org/test-repo/issues/7/comments')
 
     expect(mockHttp.post).toHaveBeenCalledOnce()
@@ -208,11 +186,11 @@ describe('postPrComment', () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, JSON.stringify(existing)))
     mockHttp.patch.mockResolvedValueOnce(makeResponse(200, '{}'))
 
-    await postPrComment('tok', 'test-org/test-repo', 7, VALID_BODY, false, 'enforce')
+    await postPrComment('tok', 'test-org/test-repo', 7, VALID_BODY, 'failed', 'enforce')
 
     expect(mockHttp.patch).toHaveBeenCalledOnce()
     expect(mockHttp.post).not.toHaveBeenCalled()
-    const [patchUrl] = mockHttp.patch.mock.calls[0] as [string]
+    const [patchUrl, body] = mockHttp.patch.mock.calls[0] as [string, string]
     expect(patchUrl).toContain('/issues/comments/55')
   })
 
@@ -220,7 +198,7 @@ describe('postPrComment', () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, '[]'))
     mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
 
-    await postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, true, 'enforce')
+    await postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, 'passed', 'enforce')
 
     const [, postBody] = mockHttp.post.mock.calls[0] as [string, string]
     expect(JSON.parse(postBody).body).toContain('✅ Passed')
@@ -230,17 +208,27 @@ describe('postPrComment', () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, '[]'))
     mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
 
-    await postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, false, 'enforce')
+    await postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, 'failed', 'enforce')
 
     const [, postBody] = mockHttp.post.mock.calls[0] as [string, string]
     expect(JSON.parse(postBody).body).toContain('❌ Failed')
+  })
+
+  it('should post an exempted comment with ⚠️ in body', async () => {
+    mockHttp.get.mockResolvedValueOnce(makeResponse(200, '[]'))
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
+
+    await postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, 'exempted', 'enforce')
+
+    const [, postBody] = mockHttp.post.mock.calls[0] as [string, string]
+    expect(JSON.parse(postBody).body).toContain('⚠️ Exempted — dependency update detected')
   })
 
   it('should use Bearer token in Authorization header', async () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, '[]'))
     mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
 
-    await postPrComment('my-secret-token', 'test-org/test-repo', 3, VALID_BODY, true, 'enforce')
+    await postPrComment('my-secret-token', 'test-org/test-repo', 3, VALID_BODY, 'passed', 'enforce')
 
     const [_, headers] = mockHttp.get.mock.calls[0] as [string, Record<string, string>]
 
@@ -251,7 +239,7 @@ describe('postPrComment', () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(403, 'Forbidden'))
 
     await expect(
-      postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, true, 'enforce'),
+      postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, 'passed', 'enforce'),
     ).rejects.toThrow('HTTP 403')
   })
 
@@ -259,9 +247,10 @@ describe('postPrComment', () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, '[]'))
     mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
 
-    await postPrComment('tok', 'my-org/my-repo', 9, VALID_BODY, true, 'enforce')
+    await postPrComment('tok', 'my-org/my-repo', 9, VALID_BODY, 'passed', 'enforce')
 
     const [listUrl] = mockHttp.get.mock.calls[0] as [string]
     expect(listUrl).toContain('/repos/my-org/my-repo/issues/9/comments')
   })
 })
+
