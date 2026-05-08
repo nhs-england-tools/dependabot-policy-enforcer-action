@@ -1,14 +1,17 @@
+[A-Z]+'s
 [A-Z]+s
 Bitwarden
 bot
 Cyber
 Dependabot
+[Gg]ameable
 Gitleaks
 Grype
 hardcode
 hardcoded
 hardcoding
 idempotence
+[Ll]ockfile
 OAuth
 Octokit
 onboarding
