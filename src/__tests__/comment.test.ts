@@ -243,6 +243,50 @@ describe('postPrComment', () => {
     ).rejects.toThrow('HTTP 403')
   })
 
+  it('should retry on transient 502 and succeed on second attempt', async () => {
+    mockHttp.get
+      .mockResolvedValueOnce(makeResponse(502, 'Bad Gateway'))
+      .mockResolvedValueOnce(makeResponse(200, '[]'))
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
+
+    await postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, 'passed', 'enforce')
+
+    expect(mockHttp.get).toHaveBeenCalledTimes(2)
+    expect(mockHttp.post).toHaveBeenCalledOnce()
+  })
+
+  it('should retry on transient 503 and succeed on second attempt', async () => {
+    mockHttp.get
+      .mockResolvedValueOnce(makeResponse(503, 'Service Unavailable'))
+      .mockResolvedValueOnce(makeResponse(200, '[]'))
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
+
+    await postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, 'passed', 'enforce')
+
+    expect(mockHttp.get).toHaveBeenCalledTimes(2)
+    expect(mockHttp.post).toHaveBeenCalledOnce()
+  })
+
+  it('should throw after exhausting retries on persistent 504', async () => {
+    mockHttp.get
+      .mockResolvedValueOnce(makeResponse(504, 'Gateway Timeout'))
+      .mockResolvedValueOnce(makeResponse(504, 'Gateway Timeout'))
+
+    await expect(
+      postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, 'passed', 'enforce'),
+    ).rejects.toThrow('HTTP 504')
+  })
+
+  it('should not retry on non-transient errors like 401', async () => {
+    mockHttp.get.mockResolvedValueOnce(makeResponse(401, 'Unauthorized'))
+
+    await expect(
+      postPrComment('tok', 'test-org/test-repo', 1, VALID_BODY, 'passed', 'enforce'),
+    ).rejects.toThrow('HTTP 401')
+
+    expect(mockHttp.get).toHaveBeenCalledOnce()
+  })
+
   it('should split owner and repo correctly from repo string', async () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, '[]'))
     mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
