@@ -10,6 +10,7 @@ const {
   mockWarning,
   mockSendPolicyRequest,
   mockPostPrComment,
+  mockPostErrorPrComment,
   mockIsDependencyUpdate,
 } = vi.hoisted(() => ({
   mockGetInput: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockWarning: vi.fn(),
   mockSendPolicyRequest: vi.fn(),
   mockPostPrComment: vi.fn(),
+  mockPostErrorPrComment: vi.fn(),
   mockIsDependencyUpdate: vi.fn(),
 }));
 
@@ -38,6 +40,7 @@ vi.mock("../../src/lib/request.js", () => ({
 
 vi.mock("../../src/lib/comment.js", () => ({
   postPrComment: mockPostPrComment,
+  postErrorPrComment: mockPostErrorPrComment,
 }));
 
 vi.mock("../../src/lib/filecheck.js", () => ({
@@ -667,5 +670,139 @@ describe("Package file change detection in enforce mode", () => {
 
     expect(mockIsDependencyUpdate).not.toHaveBeenCalled();
     expect(mockSetFailed).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Error-path PR comment (postErrorPrComment)
+// ---------------------------------------------------------------------------
+
+describe("Error-path PR comment", () => {
+  let mockExtractPrNumber: ReturnType<typeof vi.fn>;
+  const originalEnv = process.env;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    process.env = {
+      ...originalEnv,
+      GITHUB_REPOSITORY: "test-org/test-repo",
+      GITHUB_EVENT_NAME: "pull_request",
+      GITHUB_REF: "refs/pull/4/merge",
+    };
+
+    mockGetInput.mockImplementation((name: string) => {
+      switch (name) {
+        case "secret": return "test-secret-value";
+        case "api-endpoint": return "https://api.example.com/check";
+        case "mode": return "enforce";
+        case "timeout-ms": return "10000";
+        case "github-token": return "gha-token-abc";
+        default: return "";
+      }
+    });
+
+    mockPostErrorPrComment.mockResolvedValue(undefined);
+    mockPostPrComment.mockResolvedValue(undefined);
+
+    const githubMod = await import("../../src/lib/github.js");
+    mockExtractPrNumber = githubMod.extractPrNumber as ReturnType<typeof vi.fn>;
+    mockExtractPrNumber.mockReturnValue(4);
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("should call postErrorPrComment on non-2xx API response", async () => {
+    mockSendPolicyRequest.mockResolvedValue({
+      statusCode: 500,
+      body: '{"error":"INTERNAL_SERVER_ERROR"}',
+      durationMs: 80,
+    });
+
+    await run();
+
+    expect(mockPostErrorPrComment).toHaveBeenCalledOnce();
+    expect(mockPostErrorPrComment).toHaveBeenCalledWith(
+      "gha-token-abc",
+      "test-org/test-repo",
+      4,
+      "enforce",
+      '{"error":"INTERNAL_SERVER_ERROR"}',
+      500,
+    );
+    expect(mockSetFailed).toHaveBeenCalled();
+  });
+
+  it("should call postErrorPrComment with null statusCode on unexpected error", async () => {
+    mockSendPolicyRequest.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    await run();
+
+    expect(mockPostErrorPrComment).toHaveBeenCalledOnce();
+    expect(mockPostErrorPrComment).toHaveBeenCalledWith(
+      "gha-token-abc",
+      "test-org/test-repo",
+      4,
+      "enforce",
+      "ECONNREFUSED",
+      null,
+    );
+    expect(mockSetFailed).toHaveBeenCalled();
+  });
+
+  it("should not call postErrorPrComment when github-token is absent", async () => {
+    mockGetInput.mockImplementation((name: string) => {
+      switch (name) {
+        case "secret": return "test-secret-value";
+        case "api-endpoint": return "https://api.example.com/check";
+        case "mode": return "enforce";
+        case "timeout-ms": return "10000";
+        case "github-token": return "";
+        default: return "";
+      }
+    });
+
+    mockSendPolicyRequest.mockResolvedValue({
+      statusCode: 500,
+      body: 'error',
+      durationMs: 10,
+    });
+
+    await run();
+
+    expect(mockPostErrorPrComment).not.toHaveBeenCalled();
+  });
+
+  it("should warn but not fail if postErrorPrComment throws on non-2xx path", async () => {
+    mockSendPolicyRequest.mockResolvedValue({
+      statusCode: 403,
+      body: 'Forbidden',
+      durationMs: 10,
+    });
+    mockPostErrorPrComment.mockRejectedValue(new Error("comment API down"));
+
+    await run();
+
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining("comment API down"),
+    );
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining("403"),
+    );
+  });
+
+  it("should silently swallow postErrorPrComment failure in catch block", async () => {
+    mockSendPolicyRequest.mockRejectedValue(new Error("timeout"));
+    mockPostErrorPrComment.mockRejectedValue(new Error("secondary failure"));
+
+    await run();
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining("timeout"),
+    );
+    expect(mockWarning).not.toHaveBeenCalledWith(
+      expect.stringContaining("secondary failure"),
+    );
   });
 });

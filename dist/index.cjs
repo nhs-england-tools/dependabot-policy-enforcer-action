@@ -19890,8 +19890,13 @@ async function sendPolicyRequest(opts) {
 // src/lib/comment.ts
 var COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
 function buildCommentBody(status, policy, mode, url) {
-  const statusLine = status === "passed" ? "**Status:** \u2705 Passed" : status === "exempted" ? "**Status:** \u26A0\uFE0F Exempted \u2014 dependency update detected" : "**Status:** \u274C Failed";
-  const lines = [COMMENT_MARKER, "## \u{1F916} Dependabot Policy Check", "", statusLine];
+  const statusLine = status === "passed" ? "**Status:** \u2705 Passed" : status === "exempted" ? "**Status:** \u26A0\uFE0F Exempted \u2014 dependency update detected" : status === "error" ? "**Status:** \u274C Error \u2014 policy check could not complete" : "**Status:** \u274C Failed";
+  const lines = [
+    COMMENT_MARKER,
+    "## \u{1F916} Dependabot Policy Check",
+    "",
+    statusLine
+  ];
   const modeLine = `**Mode:** ${mode}`;
   lines.push(modeLine);
   const summary2 = policy.summary ?? {};
@@ -19906,6 +19911,20 @@ function buildCommentBody(status, policy, mode, url) {
   }
   lines.push("", `### [View dependabot alerts](${url})`);
   return lines.join("\n");
+}
+async function withRetry(fn, retries = 1, delayMs = 2e3) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error2) {
+      const isTransient = error2 instanceof Error && /HTTP (502|503|504)/.test(error2.message);
+      if (!isTransient || attempt === retries) {
+        throw error2;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw new Error("Retry logic exhausted unexpectedly");
 }
 async function listPrComments(opts) {
   const { token, owner, repo, prNumber } = opts;
@@ -19935,7 +19954,9 @@ async function createPrComment(opts, body) {
     const status = response.message.statusCode ?? 0;
     if (status !== 201) {
       const responseBody = await response.readBody();
-      throw new Error(`GitHub API error creating comment: HTTP ${status} ${responseBody}`);
+      throw new Error(
+        `GitHub API error creating comment: HTTP ${status} ${responseBody}`
+      );
     }
     await response.readBody();
   } finally {
@@ -19954,7 +19975,9 @@ async function updatePrComment(opts, body) {
     const status = response.message.statusCode ?? 0;
     if (status !== 200) {
       const responseBody = await response.readBody();
-      throw new Error(`GitHub API error updating comment: HTTP ${status} ${responseBody}`);
+      throw new Error(
+        `GitHub API error updating comment: HTTP ${status} ${responseBody}`
+      );
     }
     await response.readBody();
   } finally {
@@ -19962,24 +19985,66 @@ async function updatePrComment(opts, body) {
   }
 }
 async function upsertPrComment(opts, body) {
-  const comments = await listPrComments(opts);
-  const existing = comments.find(
-    (c) => typeof c.body === "string" && c.body.includes(COMMENT_MARKER)
-  );
-  if (existing) {
-    await updatePrComment(
-      { token: opts.token, owner: opts.owner, repo: opts.repo, commentId: existing.id },
-      body
+  await withRetry(async () => {
+    const comments = await listPrComments(opts);
+    const existing = comments.find(
+      (c) => typeof c.body === "string" && c.body.includes(COMMENT_MARKER)
     );
-  } else {
-    await createPrComment(opts, body);
-  }
+    if (existing) {
+      await updatePrComment(
+        {
+          token: opts.token,
+          owner: opts.owner,
+          repo: opts.repo,
+          commentId: existing.id
+        },
+        body
+      );
+    } else {
+      await createPrComment(opts, body);
+    }
+  });
 }
 async function postPrComment(githubToken, repo, prNumber, body, status, mode) {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split("/");
     const url = `https://github.com/${owner}/${repoName}/security/dependabot`;
     const commentBody = buildCommentBody(status, body, mode, url);
+    await upsertPrComment(
+      { token: githubToken, owner, repo: repoName, prNumber },
+      commentBody
+    );
+  }
+}
+function buildErrorCommentBody(mode, errorMessage, statusCode, repo) {
+  const [owner, repoName] = repo.split("/");
+  const url = `https://github.com/${owner}/${repoName}/security/dependabot`;
+  const lines = [
+    COMMENT_MARKER,
+    "## \u{1F916} Dependabot Policy Check",
+    "",
+    "**Status:** \u274C Error \u2014 policy check could not complete",
+    `**Mode:** ${mode}`,
+    "",
+    "### Error:",
+    statusCode !== null ? `The policy enforcement API returned an error (HTTP ${statusCode}).` : `The policy enforcement API could not be reached: ${errorMessage}`,
+    "",
+    "This does **not** mean your repository has zero alerts \u2014 the check could not complete.",
+    "Please contact the platform team or re-run the workflow.",
+    "",
+    `### [View dependabot alerts](${url})`
+  ];
+  return lines.join("\n");
+}
+async function postErrorPrComment(githubToken, repo, prNumber, mode, errorMessage, statusCode) {
+  if (prNumber !== null) {
+    const [owner, repoName] = repo.split("/");
+    const commentBody = buildErrorCommentBody(
+      mode,
+      errorMessage,
+      statusCode,
+      repo
+    );
     await upsertPrComment(
       { token: githubToken, owner, repo: repoName, prNumber },
       commentBody
@@ -20102,6 +20167,12 @@ function validateUrl(value) {
   }
 }
 async function run() {
+  const repo = process.env.GITHUB_REPOSITORY ?? "";
+  const mode = (getInput("mode") || "enforce").trim().toLowerCase();
+  const githubToken = getInput("github-token");
+  if (githubToken) {
+    setSecret(githubToken);
+  }
   try {
     const secret = getInput("secret");
     const endpoint = getInput("api-endpoint");
@@ -20109,8 +20180,6 @@ async function run() {
       getInput("timeout-ms") || "10000",
       10
     );
-    const repo = process.env.GITHUB_REPOSITORY ?? "";
-    const mode = (getInput("mode") || "enforce").trim().toLowerCase();
     setSecret(secret);
     if (!secret) {
       setFailed(
@@ -20148,10 +20217,6 @@ async function run() {
       );
       return;
     }
-    const githubToken = getInput("github-token");
-    if (githubToken) {
-      setSecret(githubToken);
-    }
     info(`Checking Dependabot policy for ${repo}\u2026`);
     const result = await sendPolicyRequest({
       repo,
@@ -20173,7 +20238,12 @@ async function run() {
       if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
         try {
           const [owner, repoName] = repo.split("/");
-          const dependencyUpdate = await isDependencyUpdate(githubToken, owner, repoName, prNumber);
+          const dependencyUpdate = await isDependencyUpdate(
+            githubToken,
+            owner,
+            repoName,
+            prNumber
+          );
           if (dependencyUpdate) {
             passed = true;
             status = "exempted";
@@ -20216,12 +20286,48 @@ ${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null,
         `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed with status ${result.statusCode} (${result.durationMs}ms).${LOG_STYLE.reset}
 ${LOG_STYLE.bold}Response:${LOG_STYLE.reset} ${result.body}`
       );
+      if (githubToken) {
+        const prNumber = extractPrNumber(
+          process.env.GITHUB_EVENT_NAME,
+          process.env.GITHUB_REF
+        );
+        try {
+          await postErrorPrComment(
+            githubToken,
+            repo,
+            prNumber,
+            mode,
+            result.body,
+            result.statusCode
+          );
+        } catch (commentError) {
+          const commentMsg = commentError instanceof Error ? commentError.message : String(commentError);
+          warning(`Failed to post PR error comment: ${commentMsg}`);
+        }
+      }
     }
   } catch (error2) {
     const message = error2 instanceof Error ? error2.message : String(error2);
     setFailed(
       `${LOG_STYLE.bold}${LOG_STYLE.red}Unexpected error:${LOG_STYLE.reset} ${message}`
     );
+    if (githubToken) {
+      const prNumber = extractPrNumber(
+        process.env.GITHUB_EVENT_NAME,
+        process.env.GITHUB_REF
+      );
+      try {
+        await postErrorPrComment(
+          githubToken,
+          repo,
+          prNumber,
+          mode,
+          message,
+          null
+        );
+      } catch {
+      }
+    }
   }
 }
 run();
