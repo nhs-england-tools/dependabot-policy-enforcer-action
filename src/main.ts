@@ -34,6 +34,9 @@ function validateUrl(value: string): boolean {
 }
 
 export async function run(): Promise<void> {
+  // ---------------------------------------------------------------
+  // 1. Read inputs
+  // ---------------------------------------------------------------
   const repo = process.env.GITHUB_REPOSITORY ?? "";
   const mode = (core.getInput("mode") || "enforce").trim().toLowerCase();
   const githubToken = core.getInput("github-token");
@@ -42,9 +45,6 @@ export async function run(): Promise<void> {
   }
 
   try {
-    // ---------------------------------------------------------------
-    // 1. Read inputs
-    // ---------------------------------------------------------------
     const secret = core.getInput("secret");
     const endpoint = core.getInput("api-endpoint");
     const timeoutMs = Number.parseInt(
