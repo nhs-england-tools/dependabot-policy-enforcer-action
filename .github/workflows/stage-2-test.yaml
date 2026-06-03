@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
       - name: "Set up Node.js"
         uses: actions/setup-node@v6
         with:
@@ -60,7 +60,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
       - name: "Run linting"
         run: |
           make test-lint
@@ -73,7 +73,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
       - name: "Set up Node.js"
         uses: actions/setup-node@v6
         with:
@@ -101,7 +101,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
       - name: "Run test coverage check"
         run: |
           make test-coverage
@@ -118,7 +118,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0 # Full history is needed to improving relevancy of reporting
       - name: "Perform static analysis"
