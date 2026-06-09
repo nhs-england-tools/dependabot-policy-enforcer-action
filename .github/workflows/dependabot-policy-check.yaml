@@ -12,9 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: nhs-england-tools/dependabot-policy-enforcer-action@5045f77f7151cc822cf593c51356f76cf408714c # v1
+      - uses: ./
         with:
-          api-endpoint: ${{ secrets.DEPENDABOT_ENFORCER_API_ENDPOINT }}
+          api-endpoint: ${{ vars.DEPENDABOT_ENFORCER_API_ENDPOINT }}
           secret: ${{ secrets.DEPENDABOT_ENFORCER_SECRET }}
           mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
