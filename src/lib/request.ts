@@ -46,6 +46,7 @@ export async function sendPolicyRequest(opts: PolicyRequestOptions): Promise<Pol
   const startedAt = Date.now()
 
   try {
+    console.log('line49', endpoint, requestBody, signatureData.repo, signatureData.timestamp)
     const response = await client.post(endpoint, requestBody, headers)
     const durationMs = Date.now() - startedAt
     const rawBody = await response.readBody()
