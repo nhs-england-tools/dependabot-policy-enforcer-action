@@ -8,9 +8,13 @@
 
 import * as core from "@actions/core";
 import { sendPolicyRequest } from "./lib/request.js";
-import { postPrComment, type PolicyStatus } from "./lib/comment.js";
+import {
+  postPrComment,
+  postErrorPrComment,
+  type PolicyStatus,
+} from "./lib/comment.js";
 import { extractPrNumber } from "./lib/github.js";
-import {isDependencyUpdate} from "./lib/filecheck.js";
+import { isDependencyUpdate } from "./lib/filecheck.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",
@@ -30,18 +34,23 @@ function validateUrl(value: string): boolean {
 }
 
 export async function run(): Promise<void> {
+  // ---------------------------------------------------------------
+  // 1. Read inputs
+  // ---------------------------------------------------------------
+  const repo = process.env.GITHUB_REPOSITORY ?? "";
+  const mode = (core.getInput("mode") || "enforce").trim().toLowerCase();
+  const githubToken = core.getInput("github-token");
+  if (githubToken) {
+    core.setSecret(githubToken);
+  }
+
   try {
-    // ---------------------------------------------------------------
-    // 1. Read inputs
-    // ---------------------------------------------------------------
     const secret = core.getInput("secret");
     const endpoint = core.getInput("api-endpoint");
     const timeoutMs = Number.parseInt(
       core.getInput("timeout-ms") || "10000",
       10,
     );
-    const repo = process.env.GITHUB_REPOSITORY ?? "";
-    const mode = (core.getInput("mode") || "enforce").trim().toLowerCase();
 
     // ---------------------------------------------------------------
     // 2. Mask secret immediately
@@ -98,15 +107,7 @@ export async function run(): Promise<void> {
     }
 
     // ---------------------------------------------------------------
-    // 4. Read optional github-token and mask it immediately
-    // ---------------------------------------------------------------
-    const githubToken = core.getInput("github-token");
-    if (githubToken) {
-      core.setSecret(githubToken);
-    }
-
-    // ---------------------------------------------------------------
-    // 5. Send signed request
+    // 4. Send signed request
     // ---------------------------------------------------------------
     core.info(`Checking Dependabot policy for ${repo}…`);
 
@@ -131,7 +132,7 @@ export async function run(): Promise<void> {
         process.env.GITHUB_REF,
       );
       let passed = mode === "report" ? true : body.pipelinePasses === true;
-      let status: PolicyStatus = passed ? 'passed' : 'failed';
+      let status: PolicyStatus = passed ? "passed" : "failed";
 
       // ---------------------------------------------------------------
       // 6a. Package-file exemption (enforce mode only)
@@ -150,14 +151,19 @@ export async function run(): Promise<void> {
       if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
         try {
           const [owner, repoName] = repo.split("/");
-          const dependencyUpdate = await isDependencyUpdate(githubToken, owner, repoName, prNumber);
+          const dependencyUpdate = await isDependencyUpdate(
+            githubToken,
+            owner,
+            repoName,
+            prNumber,
+          );
           if (dependencyUpdate) {
             passed = true;
-            status = 'exempted';
+            status = "exempted";
             core.info(
               `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package or github action files. Allowing step to succeed.${LOG_STYLE.reset}. \n` +
-              `Please review the policy summary and ensure the PR is fixing a vulnerability or updating dependencies appropriately. \n` +
-              `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
+                `Please review the policy summary and ensure the PR is fixing a vulnerability or updating dependencies appropriately. \n` +
+                `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`,
             );
           }
         } catch (error) {
@@ -171,10 +177,11 @@ export async function run(): Promise<void> {
           `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} \n` +
             `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`,
         );
-      } else if (passed && body.message) { // Message present in report mode
+      } else if (passed && body.message) {
+        // Message present in report mode
         core.info(
           `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${body.message} \n` +
-            `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
+            `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`,
         );
       } else {
         core.info(
@@ -203,12 +210,56 @@ export async function run(): Promise<void> {
         `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed with status ${result.statusCode} (${result.durationMs}ms).${LOG_STYLE.reset}\n` +
           `${LOG_STYLE.bold}Response:${LOG_STYLE.reset} ${result.body}`,
       );
+
+      // Post an error comment so the PR doesn't show a stale "Passed" from a previous run
+      if (githubToken) {
+        const prNumber = extractPrNumber(
+          process.env.GITHUB_EVENT_NAME,
+          process.env.GITHUB_REF,
+        );
+        try {
+          await postErrorPrComment(
+            githubToken,
+            repo,
+            prNumber,
+            mode,
+            result.body,
+            result.statusCode,
+          );
+        } catch (commentError) {
+          const commentMsg =
+            commentError instanceof Error
+              ? commentError.message
+              : String(commentError);
+          core.warning(`Failed to post PR error comment: ${commentMsg}`);
+        }
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     core.setFailed(
       `${LOG_STYLE.bold}${LOG_STYLE.red}Unexpected error:${LOG_STYLE.reset} ${message}`,
     );
+
+    // Attempt to post an error comment for network/timeout failures
+    if (githubToken) {
+      const prNumber = extractPrNumber(
+        process.env.GITHUB_EVENT_NAME,
+        process.env.GITHUB_REF,
+      );
+      try {
+        await postErrorPrComment(
+          githubToken,
+          repo,
+          prNumber,
+          mode,
+          message,
+          null,
+        );
+      } catch {
+        // Best-effort — already failed, don't mask the original error
+      }
+    }
   }
 }
 
