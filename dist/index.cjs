@@ -4003,11 +4003,11 @@ var require_util2 = __commonJS({
     var { isUint8Array } = require("node:util/types");
     var { webidl } = require_webidl();
     var supportedHashes = [];
-    var crypto3;
+    var crypto;
     try {
-      crypto3 = require("node:crypto");
+      crypto = require("node:crypto");
       const possibleRelevantHashes = ["sha256", "sha384", "sha512"];
-      supportedHashes = crypto3.getHashes().filter((hash) => possibleRelevantHashes.includes(hash));
+      supportedHashes = crypto.getHashes().filter((hash) => possibleRelevantHashes.includes(hash));
     } catch {
     }
     function responseURL(response) {
@@ -4280,7 +4280,7 @@ var require_util2 = __commonJS({
       }
     }
     function bytesMatch(bytes, metadataList) {
-      if (crypto3 === void 0) {
+      if (crypto === void 0) {
         return true;
       }
       const parsedMetadata = parseMetadata(metadataList);
@@ -4295,7 +4295,7 @@ var require_util2 = __commonJS({
       for (const item of metadata) {
         const algorithm = item.algo;
         const expectedValue = item.hash;
-        let actualValue = crypto3.createHash(algorithm).update(bytes).digest("base64");
+        let actualValue = crypto.createHash(algorithm).update(bytes).digest("base64");
         if (actualValue[actualValue.length - 1] === "=") {
           if (actualValue[actualValue.length - 2] === "=") {
             actualValue = actualValue.slice(0, -2);
@@ -5359,8 +5359,8 @@ var require_body = __commonJS({
     var { multipartFormDataParser } = require_formdata_parser();
     var random;
     try {
-      const crypto3 = require("node:crypto");
-      random = (max) => crypto3.randomInt(0, max);
+      const crypto = require("node:crypto");
+      random = (max) => crypto.randomInt(0, max);
     } catch {
       random = (max) => Math.floor(Math.random(max));
     }
@@ -13324,7 +13324,7 @@ var require_fetch = __commonJS({
     function handleFetchDone(response) {
       finalizeAndReportTiming(response, "fetch");
     }
-    function fetch(input, init = void 0) {
+    function fetch2(input, init = void 0) {
       webidl.argumentLengthCheck(arguments, 1, "globalThis.fetch");
       let p = createDeferredPromise();
       let requestObject;
@@ -14281,7 +14281,7 @@ var require_fetch = __commonJS({
       }
     }
     module2.exports = {
-      fetch,
+      fetch: fetch2,
       Fetch,
       fetching,
       finalizeAndReportTiming
@@ -16768,13 +16768,13 @@ var require_frame = __commonJS({
     "use strict";
     var { maxUnsigned16Bit } = require_constants5();
     var BUFFER_SIZE = 16386;
-    var crypto3;
+    var crypto;
     var buffer = null;
     var bufIdx = BUFFER_SIZE;
     try {
-      crypto3 = require("node:crypto");
+      crypto = require("node:crypto");
     } catch {
-      crypto3 = {
+      crypto = {
         // not full compatibility, but minimum.
         randomFillSync: function randomFillSync(buffer2, _offset, _size) {
           for (let i = 0; i < buffer2.length; ++i) {
@@ -16787,7 +16787,7 @@ var require_frame = __commonJS({
     function generateMask() {
       if (bufIdx === BUFFER_SIZE) {
         bufIdx = 0;
-        crypto3.randomFillSync(buffer ??= Buffer.allocUnsafe(BUFFER_SIZE), 0, BUFFER_SIZE);
+        crypto.randomFillSync(buffer ??= Buffer.allocUnsafe(BUFFER_SIZE), 0, BUFFER_SIZE);
       }
       return [buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++]];
     }
@@ -16859,9 +16859,9 @@ var require_connection = __commonJS({
     var { Headers: Headers3, getHeadersList } = require_headers();
     var { getDecodeSplit } = require_util2();
     var { WebsocketFrameSend } = require_frame();
-    var crypto3;
+    var crypto;
     try {
-      crypto3 = require("node:crypto");
+      crypto = require("node:crypto");
     } catch {
     }
     function establishWebSocketConnection(url, protocols, client, ws, onEstablish, options) {
@@ -16881,7 +16881,7 @@ var require_connection = __commonJS({
         const headersList = getHeadersList(new Headers3(options.headers));
         request.headersList = headersList;
       }
-      const keyValue = crypto3.randomBytes(16).toString("base64");
+      const keyValue = crypto.randomBytes(16).toString("base64");
       request.headersList.append("sec-websocket-key", keyValue);
       request.headersList.append("sec-websocket-version", "13");
       for (const protocol of protocols) {
@@ -16911,7 +16911,7 @@ var require_connection = __commonJS({
             return;
           }
           const secWSAccept = response.headersList.get("Sec-WebSocket-Accept");
-          const digest = crypto3.createHash("sha1").update(keyValue + uid).digest("base64");
+          const digest = crypto.createHash("sha1").update(keyValue + uid).digest("base64");
           if (secWSAccept !== digest) {
             failWebsocketConnection(ws, "Incorrect hash received in Sec-WebSocket-Accept header.");
             return;
@@ -18539,7 +18539,7 @@ var require_undici = __commonJS({
     module2.exports.setGlobalDispatcher = setGlobalDispatcher;
     module2.exports.getGlobalDispatcher = getGlobalDispatcher;
     var fetchImpl = require_fetch().fetch;
-    module2.exports.fetch = async function fetch(init, options = void 0) {
+    module2.exports.fetch = async function fetch2(init, options = void 0) {
       try {
         return await fetchImpl(init, options);
       } catch (err) {
@@ -18666,36 +18666,8 @@ function escapeProperty(s) {
   return toCommandValue(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A").replace(/:/g, "%3A").replace(/,/g, "%2C");
 }
 
-// node_modules/@actions/core/lib/file-command.js
-var crypto = __toESM(require("crypto"), 1);
-var fs = __toESM(require("fs"), 1);
-var os2 = __toESM(require("os"), 1);
-function issueFileCommand(command, message) {
-  const filePath = process.env[`GITHUB_${command}`];
-  if (!filePath) {
-    throw new Error(`Unable to find environment variable for file command ${command}`);
-  }
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Missing file at path: ${filePath}`);
-  }
-  fs.appendFileSync(filePath, `${toCommandValue(message)}${os2.EOL}`, {
-    encoding: "utf8"
-  });
-}
-function prepareKeyValueMessage(key, value) {
-  const delimiter = `ghadelimiter_${crypto.randomUUID()}`;
-  const convertedValue = toCommandValue(value);
-  if (key.includes(delimiter)) {
-    throw new Error(`Unexpected input: name should not contain the delimiter "${delimiter}"`);
-  }
-  if (convertedValue.includes(delimiter)) {
-    throw new Error(`Unexpected input: value should not contain the delimiter "${delimiter}"`);
-  }
-  return `${key}<<${delimiter}${os2.EOL}${convertedValue}${os2.EOL}${delimiter}`;
-}
-
 // node_modules/@actions/core/lib/core.js
-var os4 = __toESM(require("os"), 1);
+var os3 = __toESM(require("os"), 1);
 
 // node_modules/@actions/core/node_modules/@actions/http-client/lib/index.js
 var tunnel = __toESM(require_tunnel2(), 1);
@@ -19040,10 +19012,10 @@ var _summary = new Summary();
 var import_os2 = __toESM(require("os"), 1);
 
 // node_modules/@actions/io/lib/io-util.js
-var fs2 = __toESM(require("fs"), 1);
-var { chmod, copyFile, lstat, mkdir, open, readdir, rename, rm, rmdir, stat, symlink, unlink } = fs2.promises;
+var fs = __toESM(require("fs"), 1);
+var { chmod, copyFile, lstat, mkdir, open, readdir, rename, rm, rmdir, stat, symlink, unlink } = fs.promises;
 var IS_WINDOWS = process.platform === "win32";
-var READONLY = fs2.constants.O_RDONLY;
+var READONLY = fs.constants.O_RDONLY;
 
 // node_modules/@actions/exec/lib/toolrunner.js
 var IS_WINDOWS2 = process.platform === "win32";
@@ -19071,14 +19043,6 @@ function getInput(name, options) {
   }
   return val.trim();
 }
-function setOutput(name, value) {
-  const filePath = process.env["GITHUB_OUTPUT"] || "";
-  if (filePath) {
-    return issueFileCommand("OUTPUT", prepareKeyValueMessage(name, value));
-  }
-  process.stdout.write(os4.EOL);
-  issueCommand("set-output", { name }, toCommandValue(value));
-}
 function setFailed(message) {
   process.exitCode = ExitCode.Failure;
   error(message);
@@ -19090,7 +19054,7 @@ function warning(message, properties = {}) {
   issueCommand("warning", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
 function info(message) {
-  process.stdout.write(message + os4.EOL);
+  process.stdout.write(message + os3.EOL);
 }
 
 // node_modules/@actions/http-client/lib/index.js
@@ -19801,45 +19765,6 @@ var HttpClient2 = class {
 };
 var lowercaseKeys = (obj) => Object.keys(obj).reduce((c, k) => (c[k.toLowerCase()] = obj[k], c), {});
 
-// src/lib/signing.ts
-var import_node_crypto = __toESM(require("node:crypto"), 1);
-function nowIso() {
-  const d = /* @__PURE__ */ new Date();
-  return new Date(d.getTime() - d.getMilliseconds() % 1e3).toISOString().replace(/\.\d{3}Z$/, ".000Z");
-}
-function applyOffset(baseIso, offset) {
-  if (!offset) return baseIso;
-  const regex = /^([+-]?)(\d+)([smh])$/;
-  const m = regex.exec(offset);
-  if (!m) throw new Error("Invalid --offset format. Use e.g. -300s, +2m, -1h");
-  const sign = m[1] === "-" ? -1 : 1;
-  const amount = Number.parseInt(m[2], 10);
-  const unit = m[3];
-  let msByUnit;
-  if (unit === "s") {
-    msByUnit = 1e3;
-  } else if (unit === "m") {
-    msByUnit = 6e4;
-  } else {
-    msByUnit = 36e5;
-  }
-  const base = new Date(baseIso).getTime();
-  const ts = base + sign * amount * msByUnit;
-  return new Date(ts).toISOString().replace(/\.\d{3}Z$/, ".000Z");
-}
-function hmacHex(secret, payload) {
-  return import_node_crypto.default.createHmac("sha256", secret).update(payload).digest("hex");
-}
-function generateSignature(opts) {
-  const { repo, secret, timestamp, offset, prefix = "sha256=", upper = false } = opts;
-  const baseTs = timestamp || nowIso();
-  const ts = applyOffset(baseTs, offset);
-  const payload = `${repo}:${ts}`;
-  let sigHex = hmacHex(secret, payload);
-  if (upper) sigHex = sigHex.toUpperCase();
-  return { repo, timestamp: ts, signature: sigHex, prefix };
-}
-
 // src/lib/github.ts
 var USER_AGENT = "dependabot-policy-enforcer-action";
 var GITHUB_API_BASE = "https://api.github.com";
@@ -19849,6 +19774,26 @@ function extractPrNumber(eventName, ref) {
   const m = /refs\/pull\/(\d+)\//.exec(ref);
   return m ? Number.parseInt(m[1], 10) : null;
 }
+async function graphqlQuery(token, query, variables) {
+  const headers = githubHeaders(token);
+  const res = await fetch(`${GITHUB_API_BASE}/graphql`, {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ query, variables })
+  });
+  if (res.status !== 200) {
+    const responseBody = await res.text();
+    throw new Error(`GitHub API error: HTTP ${res.status} ${responseBody}`);
+  }
+  const data = await res.json();
+  if (data.errors) {
+    throw new Error(`GitHub API GraphQL errors: ${JSON.stringify(data.errors)}`);
+  }
+  return data.data.repository.vulnerabilityAlerts.nodes;
+}
 function githubHeaders(token) {
   return {
     "Authorization": `Bearer ${token}`,
@@ -19856,34 +19801,24 @@ function githubHeaders(token) {
     "X-GitHub-Api-Version": "2022-11-28"
   };
 }
-
-// src/lib/request.ts
-async function sendPolicyRequest(opts) {
-  const { repo, secret, endpoint, mode, timeoutMs = 1e4 } = opts;
-  const signatureData = generateSignature({ repo, secret });
-  const signatureHeader = `${signatureData.prefix}${signatureData.signature}`;
-  const requestBody = JSON.stringify({ action: "check", mode });
-  const headers = {
-    "Content-Type": "application/json",
-    "X-Hub-Repository": signatureData.repo,
-    "X-Hub-Timestamp": signatureData.timestamp,
-    "X-Hub-Signature-256": signatureHeader
-  };
-  const client = new HttpClient2(USER_AGENT, void 0, {
-    socketTimeout: timeoutMs
-  });
-  const startedAt = Date.now();
+async function isDependabotEnabled(owner, repo, token) {
+  if (!token) return false;
+  const headers = githubHeaders(token);
   try {
-    const response = await client.post(endpoint, requestBody, headers);
-    const durationMs = Date.now() - startedAt;
-    const rawBody = await response.readBody();
-    return {
-      statusCode: response.message.statusCode ?? 0,
-      body: rawBody.trim(),
-      durationMs
-    };
-  } finally {
-    client.dispose();
+    const res = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}/vulnerability-alerts`, {
+      method: "GET",
+      headers
+    });
+    if (res.status === 403) {
+      throw new Error("Permission denied: token requires vulnerability-alerts permission to check Dependabot status");
+    }
+    if (res.status === 404) {
+      return false;
+    }
+    return true;
+  } catch (error2) {
+    console.error("Error checking Dependabot status:", error2);
+    throw error2;
   }
 }
 
@@ -19899,14 +19834,18 @@ function buildCommentBody(status, policy, mode, url) {
   ];
   const modeLine = `**Mode:** ${mode}`;
   lines.push(modeLine);
-  const summary2 = policy.summary ?? {};
+  const summary2 = policy.summary;
   lines.push("", "### Summary:");
   for (const [key, value] of Object.entries(summary2)) {
     lines.push(`- **${key}:** ${value}`);
   }
-  const violations = policy.findings ?? {};
+  const violations = policy.findings;
   lines.push("", "### Violations:");
-  for (const [key, value] of Object.entries(violations)) {
+  for (const [key, value] of Object.entries(violations.violations)) {
+    if (!Array.isArray(value)) {
+      lines.push(`- **${key}:** null`);
+      continue;
+    }
     lines.push(`- **${key}:** ${value.length}`);
   }
   lines.push("", `### [View dependabot alerts](${url})`);
@@ -20016,7 +19955,7 @@ async function postPrComment(githubToken, repo, prNumber, body, status, mode) {
     );
   }
 }
-function buildErrorCommentBody(mode, errorMessage, statusCode, repo) {
+function buildErrorCommentBody(mode, errorMessage, repo) {
   const [owner, repoName] = repo.split("/");
   const url = `https://github.com/${owner}/${repoName}/security/dependabot`;
   const lines = [
@@ -20027,7 +19966,7 @@ function buildErrorCommentBody(mode, errorMessage, statusCode, repo) {
     `**Mode:** ${mode}`,
     "",
     "### Error:",
-    statusCode !== null ? `The policy enforcement API returned an error (HTTP ${statusCode}).` : `The policy enforcement API could not be reached: ${errorMessage}`,
+    `The policy enforcement failed with error: ${errorMessage}`,
     "",
     "This does **not** mean your repository has zero alerts \u2014 the check could not complete.",
     "Please contact the platform team or re-run the workflow.",
@@ -20036,13 +19975,12 @@ function buildErrorCommentBody(mode, errorMessage, statusCode, repo) {
   ];
   return lines.join("\n");
 }
-async function postErrorPrComment(githubToken, repo, prNumber, mode, errorMessage, statusCode) {
+async function postErrorPrComment(githubToken, repo, prNumber, mode, errorMessage) {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split("/");
     const commentBody = buildErrorCommentBody(
       mode,
       errorMessage,
-      statusCode,
       repo
     );
     await upsertPrComment(
@@ -20150,6 +20088,194 @@ async function getPageOfFiles(client, url, headers) {
   return { files: pageFiles, hasNextPage };
 }
 
+// src/lib/dependabotAlertsFetcher.ts
+var RECOGNISED_SEVERITIES = /* @__PURE__ */ new Set([
+  "critical",
+  "high",
+  "medium",
+  "low"
+]);
+var DependabotPolicyEvaluator = class {
+  token;
+  repo;
+  owner;
+  constructor(githubToken, repo) {
+    const [owner, repoName] = repo.split("/");
+    this.owner = owner;
+    this.repo = repoName;
+    this.token = githubToken;
+  }
+  /**
+   * Fetch all open Dependabot alerts for a repository
+   * @param owner Repository owner (organization)
+   * @param repo Repository name
+   * @returns Discriminated union indicating whether Dependabot is enabled and, if so, the open alerts
+   */
+  async fetchOpenAlerts() {
+    try {
+      const query = `
+        query($owner: String!, $repo: String!) {
+          repository(owner: $owner, name: $repo) {
+            vulnerabilityAlerts(first: 100, states: OPEN) {
+              nodes {
+                number
+                securityVulnerability {
+                  severity
+                }
+                createdAt
+              }
+            }
+          }
+        }`;
+      const alerts = await graphqlQuery(this.token, query, { owner: this.owner, repo: this.repo });
+      console.info("Fetched Dependabot alerts", {
+        owner: this.owner,
+        repo: this.repo,
+        totalAlerts: alerts.length
+      });
+      return alerts;
+    } catch (error2) {
+      const status = error2 instanceof Error && "status" in error2 ? error2.status : void 0;
+      const message = error2 instanceof Error ? error2.message : String(error2);
+      console.error("Failed to fetch Dependabot alerts", {
+        owner: this.owner,
+        repo: this.repo,
+        error: message,
+        status
+      });
+      throw error2;
+    }
+  }
+  /**
+   * Calculate age of an alert in days
+   */
+  calculateAlertAgeDays(createdAt) {
+    const created = new Date(createdAt);
+    const now = /* @__PURE__ */ new Date();
+    const ageMs = now.getTime() - created.getTime();
+    return Math.floor(ageMs / (1e3 * 60 * 60 * 24));
+  }
+  /**
+   * Format age in human-readable format
+   */
+  formatAge(days) {
+    if (days === 0) return "today";
+    if (days === 1) return "1 day";
+    return `${days} days`;
+  }
+  /**
+   * Evaluate alerts against policy thresholds
+   */
+  evaluateAlerts(alerts, thresholds) {
+    const violations = {
+      critical: [],
+      high: [],
+      medium: [],
+      low: []
+    };
+    let oldestAgeDays = 0;
+    for (const alert of alerts) {
+      const rawSeverity = alert.securityVulnerability.severity.toLowerCase();
+      const ageDays = this.calculateAlertAgeDays(alert.createdAt);
+      if (ageDays > oldestAgeDays) {
+        oldestAgeDays = ageDays;
+      }
+      if (!RECOGNISED_SEVERITIES.has(rawSeverity)) {
+        console.warn(
+          "Unrecognised alert severity \u2014 alert excluded from policy evaluation",
+          {
+            alert: `https://github.com/${this.owner}/${this.repo}/security/dependabot/${alert.number}`
+          }
+        );
+        continue;
+      }
+      const severity = rawSeverity;
+      const threshold = thresholds[severity];
+      if (ageDays > threshold.maxAgeDays) {
+        violations[severity].push({
+          openedAt: alert.createdAt,
+          age: this.formatAge(ageDays)
+        });
+      }
+    }
+    const violatingAlerts = violations.critical.length + violations.high.length + violations.medium.length + violations.low.length;
+    return {
+      totalOpenAlerts: alerts.length,
+      violatingAlerts,
+      oldestAlert: this.formatAge(oldestAgeDays),
+      violations
+    };
+  }
+  async evaluateDependabotResults(mode) {
+    const dependabotEnabled = await isDependabotEnabled(this.owner, this.repo, this.token);
+    if (dependabotEnabled === false) {
+      console.warn("Dependabot alerts not enabled for repository", {
+        owner: this.owner,
+        repo: this.repo
+      });
+      return {
+        pipelinePasses: true,
+        mode,
+        repository: this.repo,
+        summary: {
+          totalOpenAlerts: null,
+          violatingAlerts: null,
+          oldestAlert: null
+        },
+        findings: {
+          violations: {
+            critical: null,
+            high: null,
+            medium: null,
+            low: null
+          }
+        },
+        message: "Dependabot alerts are not enabled for this repository, skipping alert evaluation"
+      };
+    }
+    const alerts = await this.fetchOpenAlerts();
+    info(`Fetched Dependabot alerts, with total count: ${alerts.length}`);
+    const thresholds = {
+      critical: {
+        maxAgeDays: 10,
+        description: "Critical alerts must be addressed within 10 days"
+      },
+      high: {
+        maxAgeDays: 1e3,
+        description: "High alerts must be addressed within 1000 days"
+      },
+      medium: {
+        maxAgeDays: 1e3,
+        description: "Medium alerts must be addressed within 1000 days"
+      },
+      low: {
+        maxAgeDays: 1e3,
+        description: "Low alerts must be addressed within 1000 days"
+      }
+    };
+    const evaluation = this.evaluateAlerts(alerts, thresholds);
+    info("Dependabot policy evaluation result finished");
+    const pipelinePasses = mode === "report" || evaluation.violatingAlerts === 0;
+    const result = {
+      pipelinePasses,
+      mode,
+      repository: this.repo,
+      summary: {
+        totalOpenAlerts: evaluation.totalOpenAlerts,
+        violatingAlerts: evaluation.violatingAlerts,
+        oldestAlert: evaluation.oldestAlert
+      },
+      findings: {
+        violations: evaluation.violations
+      }
+    };
+    if (pipelinePasses && evaluation.violatingAlerts > 0) {
+      result.message = `Dependabot policy check passed in report mode, but ${evaluation.violatingAlerts} alert(s) exceed the defined thresholds.`;
+    }
+    return result;
+  }
+};
+
 // src/main.ts
 var LOG_STYLE = {
   reset: "\x1B[0m",
@@ -20158,44 +20284,15 @@ var LOG_STYLE = {
   yellow: "\x1B[33m",
   red: "\x1B[31m"
 };
-function validateUrl(value) {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
 async function run() {
   const repo = process.env.GITHUB_REPOSITORY ?? "";
   const mode = (getInput("mode") || "enforce").trim().toLowerCase();
   const githubToken = getInput("github-token");
-  if (githubToken) {
-    setSecret(githubToken);
-  }
+  setSecret(githubToken);
   try {
-    const secret = getInput("secret");
-    const endpoint = getInput("api-endpoint");
-    const timeoutMs = Number.parseInt(
-      getInput("timeout-ms") || "10000",
-      10
-    );
-    setSecret(secret);
-    if (!secret) {
+    if (!githubToken) {
       setFailed(
-        "secret input is required. Store it as the DEPENDABOT_ENFORCER_SECRET repository secret and reference it in your workflow."
-      );
-      return;
-    }
-    if (!endpoint) {
-      setFailed(
-        "api-endpoint input is required. Set it as an organisation or repository variable (vars.DEPENDABOT_ENFORCER_API_ENDPOINT)."
-      );
-      return;
-    }
-    if (!validateUrl(endpoint)) {
-      setFailed(
-        `api-endpoint value is not a valid URL: "${endpoint}". Provide a fully-qualified URL including the scheme (e.g. https://api.example.com/check).`
+        "github-token input is required. Please provide a GitHub token with appropriate permissions."
       );
       return;
     }
@@ -20205,128 +20302,79 @@ async function run() {
       );
       return;
     }
-    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-      setFailed(
-        `timeout-ms must be a positive number, got "${getInput("timeout-ms")}".`
-      );
-      return;
-    }
     if (mode !== "enforce" && mode !== "report") {
       setFailed(
-        `mode must be either "enforce" or "report", got "${getInput("mode")}".`
+        `mode must be either "enforce" or "report", got "${mode}".`
       );
       return;
     }
     info(`Checking Dependabot policy for ${repo}\u2026`);
-    const result = await sendPolicyRequest({
-      repo,
-      secret,
-      endpoint,
-      mode,
-      timeoutMs
-    });
-    setOutput("status-code", result.statusCode.toString());
-    setOutput("response-body", result.body);
-    if (result.statusCode >= 200 && result.statusCode < 300) {
-      const body = JSON.parse(result.body);
-      const prNumber = extractPrNumber(
-        process.env.GITHUB_EVENT_NAME,
-        process.env.GITHUB_REF
-      );
-      let passed = mode === "report" ? true : body.pipelinePasses === true;
-      let status = passed ? "passed" : "failed";
-      if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
-        try {
-          const [owner, repoName] = repo.split("/");
-          const dependencyUpdate = await isDependencyUpdate(
-            githubToken,
-            owner,
-            repoName,
-            prNumber
-          );
-          if (dependencyUpdate) {
-            passed = true;
-            status = "exempted";
-            info(
-              `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package or github action files. Allowing step to succeed.${LOG_STYLE.reset}. 
+    const evaluator = new DependabotPolicyEvaluator(githubToken, repo);
+    const result = await evaluator.evaluateDependabotResults(mode);
+    const prNumber = extractPrNumber(
+      process.env.GITHUB_EVENT_NAME,
+      process.env.GITHUB_REF
+    );
+    let passed = mode === "report" ? true : result.pipelinePasses === true;
+    let status = passed ? "passed" : "failed";
+    if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
+      try {
+        const [owner, repoName] = repo.split("/");
+        const dependencyUpdate = await isDependencyUpdate(
+          githubToken,
+          owner,
+          repoName,
+          prNumber
+        );
+        if (dependencyUpdate) {
+          passed = true;
+          status = "exempted";
+          info(
+            `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package or github action files. Allowing step to succeed.${LOG_STYLE.reset}. 
 Please review the policy summary and ensure the PR is fixing a vulnerability or updating dependencies appropriately. 
-${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
-            );
-          }
-        } catch (error2) {
-          const msg = error2 instanceof Error ? error2.message : "Unknown error";
-          warning(`Failed to check PR changed files: ${msg}`);
-        }
-      }
-      if (!passed) {
-        setFailed(
-          `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} 
-${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
-        );
-      } else if (passed && body.message) {
-        info(
-          `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${body.message} 
-${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`
-        );
-      } else {
-        info(
-          `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed (${result.statusCode}) in ${result.durationMs}ms.${LOG_STYLE.reset}`
-        );
-      }
-      if (githubToken) {
-        try {
-          await postPrComment(githubToken, repo, prNumber, body, status, mode);
-        } catch (commentError) {
-          const commentMsg = commentError instanceof Error ? commentError.message : String(commentError);
-          warning(`Failed to post PR comment: ${commentMsg}`);
-        }
-      }
-    } else {
-      setFailed(
-        `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed with status ${result.statusCode} (${result.durationMs}ms).${LOG_STYLE.reset}
-${LOG_STYLE.bold}Response:${LOG_STYLE.reset} ${result.body}`
-      );
-      if (githubToken) {
-        const prNumber = extractPrNumber(
-          process.env.GITHUB_EVENT_NAME,
-          process.env.GITHUB_REF
-        );
-        try {
-          await postErrorPrComment(
-            githubToken,
-            repo,
-            prNumber,
-            mode,
-            result.body,
-            result.statusCode
+${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(result.summary, null, 2)}`
           );
-        } catch (commentError) {
-          const commentMsg = commentError instanceof Error ? commentError.message : String(commentError);
-          warning(`Failed to post PR error comment: ${commentMsg}`);
         }
+      } catch (error2) {
+        const msg = error2 instanceof Error ? error2.message : "Unknown error";
+        warning(`Failed to check PR changed files: ${msg}`);
       }
+    }
+    if (!passed) {
+      setFailed(
+        `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} 
+${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(result.summary, null, 2)}`
+      );
+    } else if (passed && result.message) {
+      info(
+        `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${result.message} 
+${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(result.summary, null, 2)}`
+      );
+    } else {
+      info(
+        `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed.${LOG_STYLE.reset}`
+      );
+    }
+    try {
+      await postPrComment(githubToken, repo, prNumber, result, status, mode);
+    } catch (commentError) {
+      const commentMsg = commentError instanceof Error ? commentError.message : String(commentError);
+      warning(`Failed to post PR comment: ${commentMsg}`);
     }
   } catch (error2) {
     const message = error2 instanceof Error ? error2.message : String(error2);
     setFailed(
       `${LOG_STYLE.bold}${LOG_STYLE.red}Unexpected error:${LOG_STYLE.reset} ${message}`
     );
-    if (githubToken) {
-      const prNumber = extractPrNumber(
-        process.env.GITHUB_EVENT_NAME,
-        process.env.GITHUB_REF
-      );
-      try {
-        await postErrorPrComment(
-          githubToken,
-          repo,
-          prNumber,
-          mode,
-          message,
-          null
-        );
-      } catch {
-      }
+    const prNumber = extractPrNumber(
+      process.env.GITHUB_EVENT_NAME,
+      process.env.GITHUB_REF
+    );
+    try {
+      await postErrorPrComment(githubToken, repo, prNumber, mode, message);
+    } catch (commentError) {
+      const commentMsg = commentError instanceof Error ? commentError.message : String(commentError);
+      warning(`Failed to post PR error comment: ${commentMsg}`);
     }
   }
 }
