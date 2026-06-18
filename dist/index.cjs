@@ -19801,26 +19801,6 @@ function githubHeaders(token) {
     "X-GitHub-Api-Version": "2022-11-28"
   };
 }
-async function isDependabotEnabled(owner, repo, token) {
-  if (!token) return false;
-  const headers = githubHeaders(token);
-  try {
-    const res = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}/vulnerability-alerts`, {
-      method: "GET",
-      headers
-    });
-    if (res.status === 403) {
-      throw new Error("Permission denied: token requires vulnerability-alerts permission to check Dependabot status");
-    }
-    if (res.status === 404) {
-      return false;
-    }
-    return true;
-  } catch (error2) {
-    console.error("Error checking Dependabot status:", error2);
-    throw error2;
-  }
-}
 
 // src/lib/comment.ts
 var COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
@@ -20207,32 +20187,6 @@ var DependabotPolicyEvaluator = class {
     };
   }
   async evaluateDependabotResults(mode) {
-    const dependabotEnabled = await isDependabotEnabled(this.owner, this.repo, this.token);
-    if (dependabotEnabled === false) {
-      console.warn("Dependabot alerts not enabled for repository", {
-        owner: this.owner,
-        repo: this.repo
-      });
-      return {
-        pipelinePasses: true,
-        mode,
-        repository: this.repo,
-        summary: {
-          totalOpenAlerts: null,
-          violatingAlerts: null,
-          oldestAlert: null
-        },
-        findings: {
-          violations: {
-            critical: null,
-            high: null,
-            medium: null,
-            low: null
-          }
-        },
-        message: "Dependabot alerts are not enabled for this repository, skipping alert evaluation"
-      };
-    }
     const alerts = await this.fetchOpenAlerts();
     info(`Fetched Dependabot alerts, with total count: ${alerts.length}`);
     const thresholds = {
