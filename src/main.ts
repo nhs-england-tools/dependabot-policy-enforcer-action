@@ -156,7 +156,6 @@ export async function run(): Promise<void> {
     try {
       await postErrorPrComment(githubToken, repo, prNumber, mode, message);
     } catch (commentError) {
-      // Best-effort — already failed, don't mask the original error
       const commentMsg =
           commentError instanceof Error
             ? commentError.message

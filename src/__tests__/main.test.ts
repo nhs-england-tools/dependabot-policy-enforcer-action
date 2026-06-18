@@ -7,7 +7,7 @@ const {
   mockSetFailed,
   mockInfo,
   mockWarning,
-  mockedGraphqlQuery,
+  mockedgetDependabotAlerts,
   mockPostPrComment,
   mockPostErrorPrComment,
   mockIsDependencyUpdate,
@@ -17,7 +17,7 @@ const {
   mockSetFailed: vi.fn(),
   mockInfo: vi.fn(),
   mockWarning: vi.fn(),
-  mockedGraphqlQuery: vi.fn(),
+  mockedgetDependabotAlerts: vi.fn(),
   mockPostPrComment: vi.fn(),
   mockPostErrorPrComment: vi.fn(),
   mockIsDependencyUpdate: vi.fn(),
@@ -42,7 +42,7 @@ vi.mock("../../src/lib/filecheck.js", () => ({
 
 vi.mock("../../src/lib/github.js", () => ({
   extractPrNumber: vi.fn().mockReturnValue(null),
-  graphqlQuery: mockedGraphqlQuery,
+  getDependabotAlerts: mockedgetDependabotAlerts,
   isDependabotEnabled: vi.fn().mockResolvedValue(true),
 }));
 
@@ -72,12 +72,10 @@ describe("Action Entry Point (run)", () => {
     });
 
     // Default successful response
-    mockedGraphqlQuery.mockResolvedValue([{
-      number: 805,
-      securityVulnerability: {
-        severity: "MODERATE",
-      },
-      createdAt: "2026-06-16T09:49:05Z",
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "MODERATE",
+      created_at: "2026-06-16T09:49:05Z",
     }]);
   });
 
@@ -110,12 +108,10 @@ describe("Action Entry Point (run)", () => {
   });
 
   it("should fail the action if there is violating alert", async () => {
-    mockedGraphqlQuery.mockResolvedValue([{
-      number: 805,
-      securityVulnerability: {
-        severity: "CRITICAL",
-      },
-      createdAt: "2026-06-01T09:49:05Z",
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "CRITICAL",
+      created_at: "2026-06-01T09:49:05Z",
     }]);
 
     await run();
@@ -126,12 +122,10 @@ describe("Action Entry Point (run)", () => {
   });
 
   it("should not fail the action if there is violating alert, but report mode", async () => {
-    mockedGraphqlQuery.mockResolvedValue([{
-      number: 805,
-      securityVulnerability: {
-        severity: "CRITICAL",
-      },
-      createdAt: "2026-06-01T09:49:05Z",
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "CRITICAL",
+      created_at: "2026-06-01T09:49:05Z",
     }]);
 
     mockGetInput.mockImplementation((name: string) => {
@@ -185,7 +179,7 @@ describe("Action Entry Point (run)", () => {
     expect(mockSetFailed).toHaveBeenCalledWith(
       expect.stringContaining("GITHUB_REPOSITORY"),
     );
-    expect(mockedGraphqlQuery).not.toHaveBeenCalled();
+    expect(mockedgetDependabotAlerts).not.toHaveBeenCalled();
   });
 
   it("should fail when mode is not enforce or report", async () => {
@@ -200,16 +194,16 @@ describe("Action Entry Point (run)", () => {
     expect(mockSetFailed).toHaveBeenCalledWith(
       expect.stringContaining('mode must be either "enforce" or "report"'),
     );
-    expect(mockedGraphqlQuery).not.toHaveBeenCalled();
+    expect(mockedgetDependabotAlerts).not.toHaveBeenCalled();
   });
 
 
   // ---------------------------------------------------------------
-  // Errors from mockedGraphqlQuery
+  // Errors from mockedgetDependabotAlerts
   // ---------------------------------------------------------------
 
   it("should call setFailed on non-2xx response", async () => {
-    mockedGraphqlQuery.mockRejectedValue(new Error("403 Forbidden"));
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("403 Forbidden"));
 
     await run();
 
@@ -222,7 +216,7 @@ describe("Action Entry Point (run)", () => {
 //   // ---------------------------------------------------------------
 
   it("should handle non-Error throws gracefully", async () => {
-    mockedGraphqlQuery.mockRejectedValue("string error");
+    mockedgetDependabotAlerts.mockRejectedValue("string error");
 
     await run();
 
@@ -270,12 +264,10 @@ describe("PR comment integration", () => {
       }
     });
 
-    mockedGraphqlQuery.mockResolvedValue([{
-      number: 805,
-      securityVulnerability: {
-        severity: "CRITICAL",
-      },
-      createdAt: "2026-06-16T09:49:05Z",
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "CRITICAL",
+      created_at: "2026-06-16T09:49:05Z",
     }]);
 
     mockPostPrComment.mockResolvedValue(undefined);
@@ -356,12 +348,10 @@ describe("PR comment integration", () => {
 
   it("should call postPrComment and setFailed when pipelinePasses is false", async () => {
 
-    mockedGraphqlQuery.mockResolvedValue([{
-      number: 805,
-      securityVulnerability: {
-        severity: "CRITICAL",
-      },
-      createdAt: "2026-06-01T09:49:05Z",
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "CRITICAL",
+      created_at: "2026-06-01T09:49:05Z",
     }]);
 
     await run();
@@ -416,20 +406,16 @@ describe("Package file change detection in enforce mode", () => {
     });
 
     // Policy response — pipelinePasses is false to trigger the guard
-    mockedGraphqlQuery.mockResolvedValue([
+    mockedgetDependabotAlerts.mockResolvedValue([
         {
-            number: 805,
-            securityVulnerability: {
-                severity: "CRITICAL",
-            },
-            createdAt: "2026-06-01T09:49:05Z",
+            url: "url-1",
+            severity: "CRITICAL",
+            created_at: "2026-06-01T09:49:05Z",
         },
         {
-            number: 806,
-            securityVulnerability: {
-                severity: "CRITICAL",
-            },
-            createdAt: "2026-06-01T09:49:05Z",
+            url: "url-2",
+            severity: "CRITICAL",
+            created_at: "2026-06-01T09:49:05Z",
         }
     ]);
 
@@ -507,14 +493,8 @@ describe("Package file change detection in enforce mode", () => {
   it("should not apply the package-file check in report mode", async () => {
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret":
-          return "test-secret-value";
-        case "api-endpoint":
-          return "https://api.example.com/check";
         case "mode":
           return "report";
-        case "timeout-ms":
-          return "10000";
         case "github-token":
           return "gha-token-abc";
         default:
@@ -576,7 +556,7 @@ describe("Error-path PR comment", () => {
   });
 
   it("should call postErrorPrComment with null statusCode on unexpected error", async () => {
-    mockedGraphqlQuery.mockRejectedValue(new Error("ECONNREFUSED"));
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("ECONNREFUSED"));
 
     await run();
 
@@ -609,7 +589,7 @@ describe("Error-path PR comment", () => {
       }
     });
 
-    mockedGraphqlQuery.mockRejectedValue(new Error("ECONNREFUSED"));
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("ECONNREFUSED"));
 
     await run();
 
@@ -617,7 +597,7 @@ describe("Error-path PR comment", () => {
   });
 
   it("should warn but not fail if postErrorPrComment throws on non-2xx path", async () => {
-    mockedGraphqlQuery.mockRejectedValue(new Error("403 Forbidden"));
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("403 Forbidden"));
     mockPostErrorPrComment.mockRejectedValue(new Error("comment API down"));
 
     await run();

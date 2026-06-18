@@ -4,27 +4,23 @@ import {
   type DependabotAlert,
   type PolicyThresholds,
 } from "../../src/lib/dependabotAlertsFetcher.js";
-import { graphqlQuery, isDependabotEnabled } from "../../src/lib/github.js";
+import { getDependabotAlerts } from "../../src/lib/github.js";
 
 vi.mock("../../src/lib/github.js", () => ({
-  isDependabotEnabled: vi.fn(),
-  graphqlQuery: vi.fn(),
+  getDependabotAlerts: vi.fn(),
 }));
 
-const mockIsDependabotEnabled = vi.mocked(isDependabotEnabled);
-const mockGraphqlQuery = vi.mocked(graphqlQuery);
+const mockgetDependabotAlerts = vi.mocked(getDependabotAlerts);
 
 function makeAlert(
-  number: number,
+  url: string,
   severity: string,
   createdAt: string,
 ): DependabotAlert {
   return {
-    number,
-    securityVulnerability: {
-      severity,
-    },
-    createdAt: createdAt,
+    url,
+    severity,
+    created_at: createdAt,
   };
 }
 
@@ -41,24 +37,23 @@ describe("DependabotPolicyEvaluator", () => {
   });
 
   describe("fetchOpenAlerts", () => {
-    it("calls graphqlQuery with token, query and repo variables", async () => {
+    it("calls getDependabotAlerts with token, query and repo variables", async () => {
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
-      const alerts = [makeAlert(1, "critical", "2026-06-01T00:00:00.000Z")];
-      mockGraphqlQuery.mockResolvedValueOnce(alerts);
+      const alerts = [makeAlert("url-1", "critical", "2026-06-01T00:00:00.000Z")];
+      mockgetDependabotAlerts.mockResolvedValueOnce(alerts);
 
       const result = await evaluator.fetchOpenAlerts();
 
-      expect(mockGraphqlQuery).toHaveBeenCalledWith(
+      expect(mockgetDependabotAlerts).toHaveBeenCalledWith(
         "token-123",
-        expect.stringContaining("vulnerabilityAlerts(first: 100, states: OPEN)"),
-        { owner: "org", repo: "repo" },
+        "org", "repo"
       );
       expect(result).toEqual(alerts);
     });
 
     it("rethrows graphql errors", async () => {
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
-      mockGraphqlQuery.mockRejectedValueOnce(new Error("GraphQL failed"));
+      mockgetDependabotAlerts.mockRejectedValueOnce(new Error("GraphQL failed"));
 
       await expect(evaluator.fetchOpenAlerts()).rejects.toThrow("GraphQL failed");
     });
@@ -76,7 +71,7 @@ describe("DependabotPolicyEvaluator", () => {
 
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       const result = evaluator.evaluateAlerts(
-        [makeAlert(1, "critical", oldCritical), makeAlert(2, "high", freshHigh)],
+        [makeAlert("url-1", "critical", oldCritical), makeAlert("url-2", "high", freshHigh)],
         thresholds,
       );
 
@@ -93,7 +88,7 @@ describe("DependabotPolicyEvaluator", () => {
 
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       const result = evaluator.evaluateAlerts(
-        [makeAlert(1, "unknown", old), makeAlert(2, "critical", old)],
+        [makeAlert("url-1", "unknown", old), makeAlert("url-2", "critical", old)],
         thresholds,
       );
 
@@ -102,7 +97,7 @@ describe("DependabotPolicyEvaluator", () => {
       expect(warnSpy).toHaveBeenCalledWith(
         "Unrecognised alert severity — alert excluded from policy evaluation",
         expect.objectContaining({
-          alert: "https://github.com/org/repo/security/dependabot/1",
+          alert: "url-1",
         }),
       );
 
@@ -118,9 +113,8 @@ describe("DependabotPolicyEvaluator", () => {
         Date.now() - 15 * 24 * 60 * 60 * 1000,
       ).toISOString();
 
-      mockIsDependabotEnabled.mockResolvedValueOnce(true);
-      mockGraphqlQuery.mockResolvedValueOnce([
-        makeAlert(1, "critical", oldCritical),
+      mockgetDependabotAlerts.mockResolvedValueOnce([
+        makeAlert("url-1", "critical", oldCritical),
       ]);
 
       const result = await evaluator.evaluateDependabotResults("report");
@@ -136,8 +130,7 @@ describe("DependabotPolicyEvaluator", () => {
         Date.now() - 20 * 24 * 60 * 60 * 1000,
       ).toISOString();
 
-      mockIsDependabotEnabled.mockResolvedValueOnce(true);
-      mockGraphqlQuery.mockResolvedValueOnce([makeAlert(3, "critical", oldCritical)]);
+      mockgetDependabotAlerts.mockResolvedValueOnce([makeAlert("url-1", "critical", oldCritical)]);
 
       const result = await evaluator.evaluateDependabotResults("enforce");
 
@@ -147,3 +140,4 @@ describe("DependabotPolicyEvaluator", () => {
     });
   });
 });
+

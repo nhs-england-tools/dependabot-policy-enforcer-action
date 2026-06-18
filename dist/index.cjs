@@ -19774,25 +19774,52 @@ function extractPrNumber(eventName, ref) {
   const m = /refs\/pull\/(\d+)\//.exec(ref);
   return m ? Number.parseInt(m[1], 10) : null;
 }
-async function graphqlQuery(token, query, variables) {
+async function getDependabotAlerts(token, owner, repo) {
   const headers = githubHeaders(token);
-  const res = await fetch(`${GITHUB_API_BASE}/graphql`, {
-    method: "POST",
-    headers: {
-      ...headers,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ query, variables })
-  });
-  if (res.status !== 200) {
-    const responseBody = await res.text();
-    throw new Error(`GitHub API error: HTTP ${res.status} ${responseBody}`);
+  const allAlerts = [];
+  const perPage = 100;
+  let url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=${perPage}`;
+  while (url) {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        ...headers
+      }
+    });
+    if (res.status === 403) {
+      const responseBody = await res.text();
+      if (responseBody.includes("Dependabot alerts are disabled for this repository.")) {
+        throw new Error(`GitHub API error: Dependabot alerts are disabled for this repository. ${res.status} ${responseBody}`);
+      } else {
+        throw new Error(`GitHub API error: github token requires the vulnerability-alerts permission ${res.status} ${responseBody}`);
+      }
+    }
+    if (res.status !== 200) {
+      const responseBody = await res.text();
+      throw new Error(`GitHub API error: HTTP ${res.status} ${responseBody}`);
+    }
+    const data = await res.json();
+    if (data.length === 0) {
+      break;
+    }
+    allAlerts.push(...data);
+    const linkHeader = res.headers.get("link");
+    url = null;
+    if (linkHeader) {
+      const nextLink = linkHeader.split(",").find((link) => link.includes('rel="next"'));
+      if (nextLink) {
+        const match = nextLink.match(/<([^>]+)>/);
+        if (match) {
+          url = match[1];
+        }
+      }
+    }
   }
-  const data = await res.json();
-  if (data.errors) {
-    throw new Error(`GitHub API GraphQL errors: ${JSON.stringify(data.errors)}`);
-  }
-  return data.data.repository.vulnerabilityAlerts.nodes;
+  return allAlerts.map((alert) => ({
+    severity: alert.security_vulnerability.severity,
+    url: alert.url,
+    created_at: alert.created_at
+  }));
 }
 function githubHeaders(token) {
   return {
@@ -20093,21 +20120,7 @@ var DependabotPolicyEvaluator = class {
    */
   async fetchOpenAlerts() {
     try {
-      const query = `
-        query($owner: String!, $repo: String!) {
-          repository(owner: $owner, name: $repo) {
-            vulnerabilityAlerts(first: 100, states: OPEN) {
-              nodes {
-                number
-                securityVulnerability {
-                  severity
-                }
-                createdAt
-              }
-            }
-          }
-        }`;
-      const alerts = await graphqlQuery(this.token, query, { owner: this.owner, repo: this.repo });
+      const alerts = await getDependabotAlerts(this.token, this.owner, this.repo);
       console.info("Fetched Dependabot alerts", {
         owner: this.owner,
         repo: this.repo,
@@ -20155,8 +20168,8 @@ var DependabotPolicyEvaluator = class {
     };
     let oldestAgeDays = 0;
     for (const alert of alerts) {
-      const rawSeverity = alert.securityVulnerability.severity.toLowerCase();
-      const ageDays = this.calculateAlertAgeDays(alert.createdAt);
+      const rawSeverity = alert.severity.toLowerCase();
+      const ageDays = this.calculateAlertAgeDays(alert.created_at);
       if (ageDays > oldestAgeDays) {
         oldestAgeDays = ageDays;
       }
@@ -20164,7 +20177,7 @@ var DependabotPolicyEvaluator = class {
         console.warn(
           "Unrecognised alert severity \u2014 alert excluded from policy evaluation",
           {
-            alert: `https://github.com/${this.owner}/${this.repo}/security/dependabot/${alert.number}`
+            alert: alert.url
           }
         );
         continue;
@@ -20173,7 +20186,7 @@ var DependabotPolicyEvaluator = class {
       const threshold = thresholds[severity];
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
-          openedAt: alert.createdAt,
+          opened_at: alert.created_at,
           age: this.formatAge(ageDays)
         });
       }

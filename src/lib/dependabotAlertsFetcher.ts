@@ -1,4 +1,4 @@
-import { graphqlQuery } from "./github.js";
+import { getDependabotAlerts } from "./github.js";
 import * as core from "@actions/core";
 
 const RECOGNISED_SEVERITIES: ReadonlySet<string> = new Set([
@@ -32,16 +32,13 @@ export interface PolicyThresholds {
 }
 
 export interface DependabotAlert {
-  number: number;
-  securityVulnerability: {
-    severity: string;
-
-  };
-  createdAt: string;
+  severity: string;
+  url: string;
+  created_at: string;
 }
 
 export interface AlertViolation {
-  openedAt: string;
+  opened_at: string;
   age: string;
 }
 
@@ -78,22 +75,7 @@ export class DependabotPolicyEvaluator {
    */
   async fetchOpenAlerts(): Promise<DependabotAlert[]> {
     try {
-      const query = `
-        query($owner: String!, $repo: String!) {
-          repository(owner: $owner, name: $repo) {
-            vulnerabilityAlerts(first: 100, states: OPEN) {
-              nodes {
-                number
-                securityVulnerability {
-                  severity
-                }
-                createdAt
-              }
-            }
-          }
-        }`;
-
-      const alerts = await graphqlQuery(this.token, query, { owner: this.owner, repo: this.repo })
+      const alerts = await getDependabotAlerts(this.token, this.owner, this.repo);
 
       console.info("Fetched Dependabot alerts", {
         owner: this.owner,
@@ -155,8 +137,8 @@ export class DependabotPolicyEvaluator {
     let oldestAgeDays = 0;
 
     for (const alert of alerts) {
-      const rawSeverity = alert.securityVulnerability.severity.toLowerCase();
-      const ageDays = this.calculateAlertAgeDays(alert.createdAt);
+      const rawSeverity = alert.severity.toLowerCase();
+      const ageDays = this.calculateAlertAgeDays(alert.created_at);
 
       // Track oldest alert across all severities (including unrecognised)
       if (ageDays > oldestAgeDays) {
@@ -168,7 +150,7 @@ export class DependabotPolicyEvaluator {
         console.warn(
           "Unrecognised alert severity — alert excluded from policy evaluation",
           {
-            alert: `https://github.com/${this.owner}/${this.repo}/security/dependabot/${alert.number}`
+            alert: alert.url
           },
         );
         continue;
@@ -180,7 +162,7 @@ export class DependabotPolicyEvaluator {
       // Check if alert exceeds threshold
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
-          openedAt: alert.createdAt,
+          opened_at: alert.created_at,
           age: this.formatAge(ageDays),
         });
       }
@@ -201,34 +183,6 @@ export class DependabotPolicyEvaluator {
   }
 
   async evaluateDependabotResults(mode: string): Promise<PolicyResponse> {
-    // const dependabotEnabled = await isDependabotEnabled(this.owner, this.repo, this.token);
-    // if (dependabotEnabled === false) {
-    //   console.warn("Dependabot alerts not enabled for repository", {
-    //     owner: this.owner,
-    //     repo: this.repo,
-    //   });
-    //   return {
-    //     pipelinePasses: true,
-    //     mode,
-    //     repository: this.repo,
-    //     summary: {
-    //         totalOpenAlerts: null,
-    //         violatingAlerts: null,
-    //         oldestAlert: null,
-    //       },
-    //     findings: {
-    //       violations: {
-    //         critical: null,
-    //         high: null,
-    //         medium: null,
-    //         low: null,
-    //       },
-    //     },
-    //     message:
-    //       "Dependabot alerts are not enabled for this repository, skipping alert evaluation",
-    //   };
-    // }
-
     // Fetch open alerts and evaluate against policy thresholds
 
     const alerts = await this.fetchOpenAlerts();

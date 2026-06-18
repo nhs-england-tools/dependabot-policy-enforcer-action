@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import {
-  extractPrNumber,
-  graphqlQuery,
-} from "../../src/lib/github.js";
-
-// Mock fetch
-const mockFetch = vi.fn(global.fetch);
+import { extractPrNumber, getDependabotAlerts } from "../../src/lib/github.js";
 
 // ---------------------------------------------------------------------------
 // extractPrNumber
@@ -37,8 +31,11 @@ describe("extractPrNumber", () => {
   });
 });
 
-describe("graphqlQuery", () => {
+describe("getDependabotAlerts", () => {
+  let mockFetch: any;
+
   beforeEach(() => {
+    mockFetch = vi.fn();
     vi.stubGlobal("fetch", mockFetch);
   });
 
@@ -46,71 +43,75 @@ describe("graphqlQuery", () => {
     vi.restoreAllMocks();
   });
 
-  it("should return data for a valid query", async () => {
-    mockFetch.mockResolvedValueOnce(
-      Response.json({
-          data: {
-            repository: {
-              vulnerabilityAlerts: {
-                nodes: [
-                  {
-                    number: 1,
-                    securityVulnerability: { severity: "high" },
-                    createdAt: "2024-01-01T00:00:00Z",
-                  },
-                ],
-              },
-            },
+  it("should return data for happy path with pagination", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        status: 200,
+        json: vi.fn().mockResolvedValue([
+          {
+            number: 1,
+            security_vulnerability: { severity: "high" },
+            created_at: "2024-01-01T00:00:00Z",
+            url: "url-1",
           },
-      }),
-    );
-    const token = "valid-token";
-    const query = `valid query`;
+        ]),
+        headers: new Map(),
+      } as any)
+      .mockResolvedValueOnce({
+        status: 200,
+        json: vi.fn().mockResolvedValue([]),
+        headers: new Map(),
+      } as any);
 
-    const data = await graphqlQuery(token, query);
+    const token = "valid-token";
+    const data = await getDependabotAlerts(token, "org", "repo");
     expect(data).toEqual([
-                  {
-                    number: 1,
-                    securityVulnerability: { severity: "high" },
-                    createdAt: "2024-01-01T00:00:00Z",
-                  },
-                ]);
-
+      {
+        url: "url-1",
+        severity: "high",
+        created_at: "2024-01-01T00:00:00Z",
+      },
+    ]);
   });
 
-  it("should throw an error errors in returned data", async () => {
-    mockFetch.mockResolvedValueOnce(
-      Response.json({
-          errors: "Some GraphQL error",
-      }),
-    );
-    const token = "valid-token";
-    const invalidQuery = `
-      query {
-        invalidField
-      }
-    `;
+  it("should throw an error for missing permissions on 403 status with empty body", async () => {
+    mockFetch.mockResolvedValueOnce({
+      status: 403,
+      text: vi.fn().mockResolvedValue(""),
+      headers: new Map(),
+    } as any);
 
-    await expect(graphqlQuery(token, invalidQuery)).rejects.toThrow(
-      "GitHub API GraphQL errors: \"Some GraphQL error\"",
+    const token = "valid-token";
+    await expect(getDependabotAlerts(token, "org", "repo")).rejects.toThrow(
+      "GitHub API error: github token requires the vulnerability-alerts permission 403 ",
     );
   });
 
-  it("should throw an if response is not ok", async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(null, {
-          status: 400,
-      }),
-    );
-    const token = "valid-token";
-    const invalidQuery = `
-      query {
-        invalidField
-      }
-    `;
+  it("should throw an error when Dependabot is disabled on 403 status", async () => {
+    mockFetch.mockResolvedValueOnce({
+      status: 403,
+      text: vi.fn().mockResolvedValue(
+        "Dependabot alerts are disabled for this repository."
+      ),
+      headers: new Map(),
+    } as any);
 
-    await expect(graphqlQuery(token, invalidQuery)).rejects.toThrow(
-      "GitHub API error: HTTP 400 ",
+    const token = "valid-token";
+    await expect(getDependabotAlerts(token, "org", "repo")).rejects.toThrow(
+      "GitHub API error: Dependabot alerts are disabled for this repository. 403 Dependabot alerts are disabled for this repository.",
+    );
+  });
+
+  it("should throw error with error", async () => {
+    mockFetch.mockResolvedValueOnce({
+      status: 400,
+      text: vi.fn().mockResolvedValue("random error"),
+      headers: new Map(),
+    } as any);
+
+    const token = "valid-token";
+    await expect(getDependabotAlerts(token, "org", "repo")).rejects.toThrow(
+      "GitHub API error: HTTP 400 random error",
     );
   });
 });

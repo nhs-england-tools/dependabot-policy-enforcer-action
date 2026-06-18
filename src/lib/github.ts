@@ -11,26 +11,61 @@ export function extractPrNumber(eventName?: string, ref?: string): number | null
   return m ? Number.parseInt(m[1], 10) : null
 }
 
-export async function graphqlQuery(token: string, query: string, variables?: Record<string, unknown>): Promise<any> {
+export async function getDependabotAlerts(token: string, owner: string, repo: string): Promise<any> {
   const headers = githubHeaders(token)
-  const res = await fetch(`${GITHUB_API_BASE}/graphql`, {
-    method: 'POST',
-    headers: {
-      ...headers,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query, variables }),
-  })
-  if ( res.status !== 200 ) {
-    const responseBody = await res.text()
-    throw new Error(`GitHub API error: HTTP ${res.status} ${responseBody}`)
+  const allAlerts: any[] = []
+  const perPage = 100
+  let url: string | null = `${GITHUB_API_BASE}/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=${perPage}`
+
+  while (url) {
+    const res: Response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...headers,
+      },
+    })
+    if ( res.status === 403 ) {
+      const responseBody = await res.text()
+      if (responseBody.includes("Dependabot alerts are disabled for this repository.")) {
+        throw new Error(`GitHub API error: Dependabot alerts are disabled for this repository. ${res.status} ${responseBody}`)
+      }
+      else {
+        throw new Error(`GitHub API error: github token requires the vulnerability-alerts permission ${res.status} ${responseBody}`)
+      }
+    }
+
+    if (res.status !== 200) {
+      const responseBody = await res.text()
+      throw new Error(`GitHub API error: HTTP ${res.status} ${responseBody}`)
+    }
+
+    const data = await res.json()
+
+    if (data.length === 0) {
+      break
+    }
+
+    allAlerts.push(...data)
+
+    // Parse Link header for next page
+    const linkHeader: string | null = res.headers.get('link')
+    url = null
+    if (linkHeader) {
+      const nextLink: string | undefined = linkHeader.split(',').find((link: string) => link.includes('rel="next"'))
+      if (nextLink) {
+        const match: RegExpMatchArray | null = nextLink.match(/<([^>]+)>/)
+        if (match) {
+          url = match[1]
+        }
+      }
+    }
   }
 
-  const data = await res.json()
-  if (data.errors) {
-    throw new Error(`GitHub API GraphQL errors: ${JSON.stringify(data.errors)}`)
-  }
-  return data.data.repository.vulnerabilityAlerts.nodes
+  return allAlerts.map((alert: any) => ({
+    severity: alert.security_vulnerability.severity,
+    url: alert.url,
+    created_at: alert.created_at,
+  }))
 }
 
 
