@@ -7,7 +7,6 @@
  */
 
 import * as core from "@actions/core";
-import { sendPolicyRequest } from "./lib/request.js";
 import {
   postPrComment,
   postErrorPrComment,
@@ -15,6 +14,7 @@ import {
 } from "./lib/comment.js";
 import { extractPrNumber } from "./lib/github.js";
 import { isDependencyUpdate } from "./lib/filecheck.js";
+import { DependabotPolicyEvaluator } from "./lib/dependabotAlertsFetcher.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",
@@ -40,46 +40,13 @@ export async function run(): Promise<void> {
   const repo = process.env.GITHUB_REPOSITORY ?? "";
   const mode = (core.getInput("mode") || "enforce").trim().toLowerCase();
   const githubToken = core.getInput("github-token");
-  if (githubToken) {
-    core.setSecret(githubToken);
-  }
+  core.setSecret(githubToken);
 
   try {
-    const secret = core.getInput("secret");
-    const endpoint = core.getInput("api-endpoint");
-    const timeoutMs = Number.parseInt(
-      core.getInput("timeout-ms") || "10000",
-      10,
-    );
 
-    // ---------------------------------------------------------------
-    // 2. Mask secret immediately
-    // ---------------------------------------------------------------
-    core.setSecret(secret);
-
-    // ---------------------------------------------------------------
-    // 3. Validate inputs
-    // ---------------------------------------------------------------
-    if (!secret) {
+    if (!githubToken) {
       core.setFailed(
-        "secret input is required. " +
-          "Store it as the DEPENDABOT_ENFORCER_SECRET repository secret and reference it in your workflow.",
-      );
-      return;
-    }
-
-    if (!endpoint) {
-      core.setFailed(
-        "api-endpoint input is required. " +
-          "Set it as an organisation or repository variable (vars.DEPENDABOT_ENFORCER_API_ENDPOINT).",
-      );
-      return;
-    }
-
-    if (!validateUrl(endpoint)) {
-      core.setFailed(
-        `api-endpoint value is not a valid URL: "${endpoint}". ` +
-          "Provide a fully-qualified URL including the scheme (e.g. https://api.example.com/check).",
+        "github-token input is required. Please provide a GitHub token with appropriate permissions.",
       );
       return;
     }
@@ -92,148 +59,88 @@ export async function run(): Promise<void> {
       return;
     }
 
-    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-      core.setFailed(
-        `timeout-ms must be a positive number, got "${core.getInput("timeout-ms")}".`,
-      );
-      return;
-    }
-
     if (mode !== "enforce" && mode !== "report") {
       core.setFailed(
-        `mode must be either "enforce" or "report", got "${core.getInput("mode")}".`,
+        `mode must be either "enforce" or "report", got "${mode}".`,
       );
       return;
     }
 
-    // ---------------------------------------------------------------
-    // 4. Send signed request
-    // ---------------------------------------------------------------
     core.info(`Checking Dependabot policy for ${repo}…`);
 
-    const result = await sendPolicyRequest({
-      repo,
-      secret,
-      endpoint,
-      mode,
-      timeoutMs,
-    });
+    const evaluator = new DependabotPolicyEvaluator(githubToken, repo);
+    const result = await evaluator.evaluateDependabotResults(mode);
+    const prNumber = extractPrNumber(
+      process.env.GITHUB_EVENT_NAME,
+      process.env.GITHUB_REF,
+    );
+    let passed = mode === "report" ? true : result.pipelinePasses === true;
+    let status: PolicyStatus = passed ? "passed" : "failed";
 
     // ---------------------------------------------------------------
-    // 6. Set outputs
+    // 6a. Package-file exemption (enforce mode only)
+    //
+    // If the PR changes package or dependency management files, assume
+    // it is attempting to fix a vulnerability. Rather than failing the
+    // workflow, print the policy summary and let the PR proceed.
+
+    // The check requires a github-token and a valid PR number; if
+    // either is absent we skip checking if package files have been
+    // changed (fail-safe: still fails).
+    // If the API call to Github to fetch PR files fails, a warning is emitted a
+    // and the original passed=false is preserved (fail-safe default).
     // ---------------------------------------------------------------
-    core.setOutput("status-code", result.statusCode.toString());
-    core.setOutput("response-body", result.body);
 
-    if (result.statusCode >= 200 && result.statusCode < 300) {
-      const body = JSON.parse(result.body);
-      const prNumber = extractPrNumber(
-        process.env.GITHUB_EVENT_NAME,
-        process.env.GITHUB_REF,
-      );
-      let passed = mode === "report" ? true : body.pipelinePasses === true;
-      let status: PolicyStatus = passed ? "passed" : "failed";
-
-      // ---------------------------------------------------------------
-      // 6a. Package-file exemption (enforce mode only)
-      //
-      // If the PR changes package or dependency management files, assume
-      // it is attempting to fix a vulnerability. Rather than failing the
-      // workflow, print the policy summary and let the PR proceed.
-
-      // The check requires a github-token and a valid PR number; if
-      // either is absent we skip checking if package files have been
-      // changed (fail-safe: still fails).
-      // If the API call to Github to fetch PR files fails, a warning is emitted a
-      // and the original passed=false is preserved (fail-safe default).
-      // ---------------------------------------------------------------
-
-      if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
-        try {
-          const [owner, repoName] = repo.split("/");
-          const dependencyUpdate = await isDependencyUpdate(
-            githubToken,
-            owner,
-            repoName,
-            prNumber,
+    if (mode === "enforce" && !passed && githubToken && prNumber !== null) {
+      try {
+        const [owner, repoName] = repo.split("/");
+        const dependencyUpdate = await isDependencyUpdate(
+          githubToken,
+          owner,
+          repoName,
+          prNumber,
+        );
+        if (dependencyUpdate) {
+          passed = true;
+          status = "exempted";
+          core.info(
+            `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package or github action files. Allowing step to succeed.${LOG_STYLE.reset}. \n` +
+              `Please review the policy summary and ensure the PR is fixing a vulnerability or updating dependencies appropriately. \n` +
+              `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(result.summary, null, 2)}`,
           );
-          if (dependencyUpdate) {
-            passed = true;
-            status = "exempted";
-            core.info(
-              `${LOG_STYLE.bold}${LOG_STYLE.yellow}This PR changes dependency package or github action files. Allowing step to succeed.${LOG_STYLE.reset}. \n` +
-                `Please review the policy summary and ensure the PR is fixing a vulnerability or updating dependencies appropriately. \n` +
-                `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`,
-            );
-          }
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : "Unknown error";
-          core.warning(`Failed to check PR changed files: ${msg}`);
         }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        core.warning(`Failed to check PR changed files: ${msg}`);
       }
+    }
 
-      if (!passed) {
-        core.setFailed(
-          `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} \n` +
-            `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`,
-        );
-      } else if (passed && body.message) {
-        // Message present in report mode
-        core.info(
-          `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${body.message} \n` +
-            `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(body.summary, null, 2)}`,
-        );
-      } else {
-        core.info(
-          `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed (${result.statusCode}) in ${result.durationMs}ms.${LOG_STYLE.reset}`,
-        );
-      }
-
-      // Post a PR comment if the github-token is provided, regardless of pass/fail, but only for "pull_request" events
-      if (githubToken) {
-        try {
-          await postPrComment(githubToken, repo, prNumber, body, status, mode);
-        } catch (commentError) {
-          const commentMsg =
-            commentError instanceof Error
-              ? commentError.message
-              : String(commentError);
-          core.warning(`Failed to post PR comment: ${commentMsg}`);
-        }
-      }
-    } else {
-      // Non-2xx responses indicate an API or configuration error (e.g. invalid
-      // secret, unreachable endpoint). These are always fatal regardless of
-      // mode — report mode only suppresses policy violations, not infrastructure
-      // failures.
+    if (!passed) {
       core.setFailed(
-        `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed with status ${result.statusCode} (${result.durationMs}ms).${LOG_STYLE.reset}\n` +
-          `${LOG_STYLE.bold}Response:${LOG_STYLE.reset} ${result.body}`,
+        `${LOG_STYLE.bold}${LOG_STYLE.red}Policy check failed:${LOG_STYLE.reset} \n` +
+          `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(result.summary, null, 2)}`,
       );
+    } else if (passed && result.message) {
+      // Message present in report mode
+      core.info(
+        `${LOG_STYLE.bold}${LOG_STYLE.yellow}Policy check message:${LOG_STYLE.reset} ${result.message} \n` +
+          `${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(result.summary, null, 2)}`,
+      );
+    } else {
+      core.info(
+        `${LOG_STYLE.bold}${LOG_STYLE.green}Policy check passed.${LOG_STYLE.reset}`,
+      );
+    }
 
-      // Post an error comment so the PR doesn't show a stale "Passed" from a previous run
-      if (githubToken) {
-        const prNumber = extractPrNumber(
-          process.env.GITHUB_EVENT_NAME,
-          process.env.GITHUB_REF,
-        );
-        try {
-          await postErrorPrComment(
-            githubToken,
-            repo,
-            prNumber,
-            mode,
-            result.body,
-            result.statusCode,
-          );
-        } catch (commentError) {
-          const commentMsg =
-            commentError instanceof Error
-              ? commentError.message
-              : String(commentError);
-          core.warning(`Failed to post PR error comment: ${commentMsg}`);
-        }
-      }
+    // Post a PR comment if the github-token is provided, regardless of pass/fail, but only for "pull_request" events
+    try {
+      await postPrComment(githubToken, repo, prNumber, result, status, mode);
+    } catch (commentError) {
+      const commentMsg =
+        commentError instanceof Error
+          ? commentError.message
+          : String(commentError);
+      core.warning(`Failed to post PR comment: ${commentMsg}`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -242,23 +149,19 @@ export async function run(): Promise<void> {
     );
 
     // Attempt to post an error comment for network/timeout failures
-    if (githubToken) {
-      const prNumber = extractPrNumber(
-        process.env.GITHUB_EVENT_NAME,
-        process.env.GITHUB_REF,
-      );
-      try {
-        await postErrorPrComment(
-          githubToken,
-          repo,
-          prNumber,
-          mode,
-          message,
-          null,
-        );
-      } catch {
-        // Best-effort — already failed, don't mask the original error
-      }
+    const prNumber = extractPrNumber(
+      process.env.GITHUB_EVENT_NAME,
+      process.env.GITHUB_REF,
+    );
+    try {
+      await postErrorPrComment(githubToken, repo, prNumber, mode, message);
+    } catch (commentError) {
+      // Best-effort — already failed, don't mask the original error
+      const commentMsg =
+          commentError instanceof Error
+            ? commentError.message
+            : String(commentError);
+        core.warning(`Failed to post PR error comment: ${commentMsg}`);
     }
   }
 }
