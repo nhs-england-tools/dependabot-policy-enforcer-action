@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   extractPrNumber,
   graphqlQuery,
-  isDependabotEnabled,
 } from "../../src/lib/github.js";
 
 // Mock fetch
@@ -112,60 +111,6 @@ describe("graphqlQuery", () => {
 
     await expect(graphqlQuery(token, invalidQuery)).rejects.toThrow(
       "GitHub API error: HTTP 400 ",
-    );
-  });
-});
-
-
-describe("isDependabotEnabled", () => {
-  beforeEach(() => {
-    vi.stubGlobal("fetch", mockFetch);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("should return true if Dependabot is enabled", async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(null, {
-          status: 200,
-      }),
-    );
-    const owner = "valid-owner";
-    const repo = "valid-repo";
-    const token = "valid-token";
-
-    const result = await isDependabotEnabled(owner, repo, token);
-    expect(result).toBe(true);
-  });
-
-  it("should return false if response is 404", async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(null, {
-          status: 404,
-      }),
-    );
-    const owner = "valid-owner";
-    const repo = "valid-repo";
-    const token = "valid-token";
-
-    const result = await isDependabotEnabled(owner, repo, token);
-    expect(result).toBe(false);
-  });
-
-  it("should throw an error for permission denied", async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(null, {
-          status: 403,
-      }),
-    );
-    const owner = "valid-owner";
-    const repo = "valid-repo";
-    const token = "invalid-token";
-
-    await expect(isDependabotEnabled(owner, repo, token)).rejects.toThrow(
-      "Permission denied",
     );
   });
 });

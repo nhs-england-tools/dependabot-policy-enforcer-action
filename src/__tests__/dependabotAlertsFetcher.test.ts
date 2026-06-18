@@ -111,17 +111,6 @@ describe("DependabotPolicyEvaluator", () => {
   });
 
   describe("evaluateDependabotResults", () => {
-    it("returns skip payload when dependabot is disabled", async () => {
-      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
-      mockIsDependabotEnabled.mockResolvedValueOnce(false);
-
-      const result = await evaluator.evaluateDependabotResults("enforce");
-
-      expect(result.pipelinePasses).toBe(true);
-      expect(result.summary.totalOpenAlerts).toBeNull();
-      expect(result.findings.violations.critical).toBeNull();
-      expect(result.message).toContain("not enabled");
-    });
 
     it("adds a message in report mode when violations exist", async () => {
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");

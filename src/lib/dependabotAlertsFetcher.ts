@@ -1,4 +1,4 @@
-import { isDependabotEnabled, graphqlQuery } from "./github.js";
+import { graphqlQuery } from "./github.js";
 import * as core from "@actions/core";
 
 const RECOGNISED_SEVERITIES: ReadonlySet<string> = new Set([
@@ -201,33 +201,33 @@ export class DependabotPolicyEvaluator {
   }
 
   async evaluateDependabotResults(mode: string): Promise<PolicyResponse> {
-    const dependabotEnabled = await isDependabotEnabled(this.owner, this.repo, this.token);
-    if (dependabotEnabled === false) {
-      console.warn("Dependabot alerts not enabled for repository", {
-        owner: this.owner,
-        repo: this.repo,
-      });
-      return {
-        pipelinePasses: true,
-        mode,
-        repository: this.repo,
-        summary: {
-            totalOpenAlerts: null,
-            violatingAlerts: null,
-            oldestAlert: null,
-          },
-        findings: {
-          violations: {
-            critical: null,
-            high: null,
-            medium: null,
-            low: null,
-          },
-        },
-        message:
-          "Dependabot alerts are not enabled for this repository, skipping alert evaluation",
-      };
-    }
+    // const dependabotEnabled = await isDependabotEnabled(this.owner, this.repo, this.token);
+    // if (dependabotEnabled === false) {
+    //   console.warn("Dependabot alerts not enabled for repository", {
+    //     owner: this.owner,
+    //     repo: this.repo,
+    //   });
+    //   return {
+    //     pipelinePasses: true,
+    //     mode,
+    //     repository: this.repo,
+    //     summary: {
+    //         totalOpenAlerts: null,
+    //         violatingAlerts: null,
+    //         oldestAlert: null,
+    //       },
+    //     findings: {
+    //       violations: {
+    //         critical: null,
+    //         high: null,
+    //         medium: null,
+    //         low: null,
+    //       },
+    //     },
+    //     message:
+    //       "Dependabot alerts are not enabled for this repository, skipping alert evaluation",
+    //   };
+    // }
 
     // Fetch open alerts and evaluate against policy thresholds
 
