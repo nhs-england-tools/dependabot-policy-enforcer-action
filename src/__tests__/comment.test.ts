@@ -20,9 +20,9 @@ const mockHttp = vi.hoisted(() => {
   const response = { readBody, message }
   const get = vi.fn<(url: string, headers?: Record<string, string>) => Promise<typeof response>>().mockResolvedValue(response)
   const post = vi.fn<(url: string, body: string, headers?: Record<string, string>) => Promise<typeof response>>()
-  const patch = vi.fn<(url: string, body: string, headers?: Record<string, string>) => Promise<typeof response>>()
+  const request = vi.fn<(verb: string, url: string, data?: string | null, headers?: Record<string, string>) => Promise<typeof response>>()
 
-  return { dispose, readBody, message, response, get, post, patch }
+  return { dispose, readBody, message, response, get, post, request }
 })
 
 vi.mock('@actions/http-client', () => ({
@@ -30,7 +30,7 @@ vi.mock('@actions/http-client', () => ({
     return {
       get: mockHttp.get,
       post: mockHttp.post,
-      patch: mockHttp.patch,
+      request: mockHttp.request,
       dispose: mockHttp.dispose,
     }
   }),
@@ -169,7 +169,7 @@ describe('postPrComment', () => {
 
     expect(mockHttp.get).not.toHaveBeenCalled()
     expect(mockHttp.post).not.toHaveBeenCalled()
-    expect(mockHttp.patch).not.toHaveBeenCalled()
+    expect(mockHttp.request).not.toHaveBeenCalled()
   })
 
   it('should create a comment when no existing bot comment is found', async () => {
@@ -188,19 +188,21 @@ describe('postPrComment', () => {
     expect(JSON.parse(postBody).body).toContain(COMMENT_MARKER)
   })
 
-  it('should update an existing bot comment when the marker is found', async () => {
+  it('should delete and recreate an existing bot comment when the marker is found', async () => {
     const existing: GithubComment[] = [
       { id: 55, body: EXISTING_COMMENT_BODY, user: { type: 'Bot', login: 'github-actions[bot]' } },
     ]
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, JSON.stringify(existing)))
-    mockHttp.patch.mockResolvedValueOnce(makeResponse(200, '{}'))
+    mockHttp.request.mockResolvedValueOnce(makeResponse(204, ''))
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
 
     await postPrComment('tok', 'test-org/test-repo', 7, VALID_BODY, 'failed', 'enforce')
 
-    expect(mockHttp.patch).toHaveBeenCalledOnce()
-    expect(mockHttp.post).not.toHaveBeenCalled()
-    const [patchUrl, body] = mockHttp.patch.mock.calls[0] as [string, string]
-    expect(patchUrl).toContain('/issues/comments/55')
+    expect(mockHttp.request).toHaveBeenCalledOnce()
+    expect(mockHttp.post).toHaveBeenCalledOnce()
+    const [verb, deleteUrl] = mockHttp.request.mock.calls[0] as [string, string]
+    expect(verb).toBe('DELETE')
+    expect(deleteUrl).toContain('/issues/comments/55')
   })
 
   it('should post a passed comment with ✅ in body', async () => {
@@ -383,19 +385,21 @@ describe('postErrorPrComment', () => {
     expect(parsed).toContain('HTTP 500')
   })
 
-  it('should update an existing comment when the marker is found', async () => {
+  it('should delete and recreate an existing comment when the marker is found', async () => {
     const existing: GithubComment[] = [
       { id: 99, body: EXISTING_COMMENT_BODY, user: { type: 'Bot', login: 'github-actions[bot]' } },
     ]
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, JSON.stringify(existing)))
-    mockHttp.patch.mockResolvedValueOnce(makeResponse(200, '{}'))
+    mockHttp.request.mockResolvedValueOnce(makeResponse(204, ''))
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
 
     await postErrorPrComment('tok', 'org/repo', 3, 'enforce', 'err', 500)
 
-    expect(mockHttp.patch).toHaveBeenCalledOnce()
-    expect(mockHttp.post).not.toHaveBeenCalled()
-    const [patchUrl] = mockHttp.patch.mock.calls[0] as [string]
-    expect(patchUrl).toContain('/issues/comments/99')
+    expect(mockHttp.request).toHaveBeenCalledOnce()
+    expect(mockHttp.post).toHaveBeenCalledOnce()
+    const [verb, deleteUrl] = mockHttp.request.mock.calls[0] as [string, string]
+    expect(verb).toBe('DELETE')
+    expect(deleteUrl).toContain('/issues/comments/99')
   })
 
   it('should post error body with null statusCode for network failures', async () => {

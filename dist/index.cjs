@@ -19963,23 +19963,21 @@ async function createPrComment(opts, body) {
     client.dispose();
   }
 }
-async function updatePrComment(opts, body) {
+async function deletePrComment(opts) {
   const { token, owner, repo, commentId } = opts;
   const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/issues/comments/${commentId}`;
   const client = new HttpClient2(USER_AGENT);
   try {
-    const response = await client.patch(url, JSON.stringify({ body }), {
-      ...githubHeaders(token),
-      "Content-Type": "application/json"
+    const response = await client.request("DELETE", url, null, {
+      ...githubHeaders(token)
     });
     const status = response.message.statusCode ?? 0;
-    if (status !== 200) {
+    if (status !== 204) {
       const responseBody = await response.readBody();
       throw new Error(
-        `GitHub API error updating comment: HTTP ${status} ${responseBody}`
+        `GitHub API error deleting comment: HTTP ${status} ${responseBody}`
       );
     }
-    await response.readBody();
   } finally {
     client.dispose();
   }
@@ -19991,18 +19989,16 @@ async function upsertPrComment(opts, body) {
       (c) => typeof c.body === "string" && c.body.includes(COMMENT_MARKER)
     );
     if (existing) {
-      await updatePrComment(
+      await deletePrComment(
         {
           token: opts.token,
           owner: opts.owner,
           repo: opts.repo,
           commentId: existing.id
-        },
-        body
+        }
       );
-    } else {
-      await createPrComment(opts, body);
     }
+    await createPrComment(opts, body);
   });
 }
 async function postPrComment(githubToken, repo, prNumber, body, status, mode) {
