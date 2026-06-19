@@ -5,14 +5,14 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dependabot-policy-enforcer-action&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dependabot-policy-enforcer-action)
 <!-- vale on -->
 
-A reusable GitHub Action that runs as a required workflow check. It generates a signed request using HMAC-SHA256 and calls the Dependabot Policy Enforcer API to validate that a repository meets Dependabot policy requirements.
+A reusable GitHub Action that runs as a required workflow check. It calls the GitHub Dependabot Alerts API using the workflow token, evaluates alert age against policy thresholds, and validates that a repository meets Dependabot policy requirements.
 
 This action:
 
-1. Reads the repository shared secret from a repository secret (`DEPENDABOT_ENFORCER_SECRET`)
-2. Generates an HMAC-SHA256 signature from the repository name and a UTC timestamp
-3. Sends a signed `POST` request to the configured policy enforcer API endpoint
-4. Fails the check with a clear message if the policy is not met, the secret is missing, or configuration is malformed
+1. Reads the workflow token from the `github-token` input
+2. Fetches open Dependabot alerts from the GitHub API
+3. Evaluates alerts against severity-based policy thresholds
+4. Fails the check with a clear message when policy thresholds are exceeded in `enforce` mode
 
 ## Table of Contents
 
@@ -23,7 +23,6 @@ This action:
     - [Configuration](#configuration)
   - [Usage](#usage)
     - [Inputs](#inputs)
-    - [Outputs](#outputs)
     - [Modes](#modes)
     - [PR comments](#pr-comments)
     - [Dependency update exemption](#dependency-update-exemption)
@@ -60,21 +59,14 @@ Install dependencies
 yarn install
 ```
 
-Each repository that uses this action also needs a shared secret registered with the Dependabot Policy Enforcer service. Contact your platform team to have a secret provisioned, then store it as a repository secret:
+Ensure the workflow has permission to read Dependabot alerts.
 
-1. Go to **Settings → Secrets and variables → Actions** in your repository.
-2. Click **New repository secret**.
-3. Name: `DEPENDABOT_ENFORCER_SECRET`
-4. Value: the secret provided by your platform team.
+Recommended permissions:
 
-To avoid hardcoding environment-specific values, use the following storage approach:
-
-| Value | Recommended storage |
-| ----- | ------------------- |
-| API endpoint URL | Organisation variable: `DEPENDABOT_ENFORCER_API_ENDPOINT` |
-| Shared HMAC secret | Repository secret: `DEPENDABOT_ENFORCER_SECRET` |
-
-Organisation variables are accessible to all repositories in the organisation without duplication.
+| Permission | Access | Why |
+| ---------- | ------ | --- |
+| `vulnerability-alerts` | `read` | Required to list Dependabot alerts |
+| `pull-requests` | `write` | Required to post PR comments |
 
 ## Usage
 
@@ -89,6 +81,7 @@ on:
   pull_request:
 
 permissions:
+  vulnerability-alerts: read
   pull-requests: write
 
 jobs:
@@ -97,30 +90,18 @@ jobs:
     steps:
       - uses: nhs-england-tools/dependabot-policy-enforcer-action@5045f77f7151cc822cf593c51356f76cf408714c # v1
         with:
-          api-endpoint: ${{ vars.DEPENDABOT_ENFORCER_API_ENDPOINT }}
-          secret: ${{ secrets.DEPENDABOT_ENFORCER_SECRET }}
           mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The `permissions: pull-requests: write` block is required for the action to post PR comments. If you do not need PR comments, omit the `github-token` input and the permissions block.
+The `github-token` input is required. The action uses it to fetch Dependabot alerts from the GitHub API. The `pull-requests: write` permission is only required for PR comments.
 
 ### Inputs
 
 | Input | Required | Default | Description |
 | ----- | -------- | ------- | ----------- |
-| `api-endpoint` | Yes | — | Full URL of the Dependabot Policy Enforcer API endpoint. Set this as an organisation or repository variable (`vars.DEPENDABOT_ENFORCER_API_ENDPOINT`). |
-| `secret` | Yes | — | Shared HMAC secret for this repository. Must be stored as a repository secret (`secrets.DEPENDABOT_ENFORCER_SECRET`). **Never hardcode this value.** |
 | `mode` | No | `enforce` | Policy mode: `enforce` (fail workflow on policy violation) or `report` (log warnings but do not fail). |
-| `timeout-ms` | No | `10000` | Request timeout in milliseconds. |
-| `github-token` | No | — | GitHub token used to post a policy summary comment on the pull request. Use `secrets.GITHUB_TOKEN`. If omitted, no PR comment is posted. Also required for the [dependency update exemption](#dependency-update-exemption). |
-
-### Outputs
-
-| Output | Description |
-| ------ | ----------- |
-| `status-code` | The HTTP status code returned by the API. |
-| `response-body` | The response body from the API (sensitive fields are redacted). |
+| `github-token` | Yes | — | GitHub token used to fetch Dependabot alerts and post a policy summary comment on pull requests. Use `secrets.GITHUB_TOKEN`. Requires `vulnerability-alerts: read` permission. |
 
 ### Modes
 
@@ -135,7 +116,7 @@ Set the mode centrally via an organisation variable (`DEPENDABOT_ENFORCER_MODE`)
 
 ### PR comments
 
-When the `github-token` input is provided and the workflow is triggered by a `pull_request` event, the action posts (or updates) a summary comment on the PR.
+When the workflow is triggered by a `pull_request` event, the action posts a summary comment on the PR.
 
 The comment includes:
 
@@ -145,7 +126,7 @@ The comment includes:
 - **Violations** — number of findings per category
 - **Link** — direct link to the repository's Dependabot alerts page
 
-The comment is idempotent: subsequent runs update the same comment rather than creating duplicates. Comment failures are logged as warnings and never mask the policy decision.
+The comment is idempotent: subsequent runs replace the previous action-managed comment rather than creating duplicates. Comment failures are logged as warnings and never mask the policy decision.
 
 ### Dependency update exemption
 
@@ -177,95 +158,63 @@ Run with coverage:
 yarn test --typecheck --run --coverage
 ```
 
-A helper script is included at `scripts/hmac-helper.ts` to assist with local testing and signature verification. The core functions (`hmacHex`, `generateSignature`, `verifySignature`) are the reference implementation of the signing algorithm, providing a vetted starting point and enabling debugging of signature failures before raising a pull request:
-
-```shell
-# Generate headers for a test request
-yarn hmac-helper generate \
-  --repo my-org/my-repo \
-  --secret <your-secret>
-
-# Verify an existing signature
-yarn hmac-helper verify \
-  --repo my-org/my-repo \
-  --secret <your-secret> \
-  --timestamp 2026-03-03T12:00:00.000Z \
-  --signature sha256=<hex>
-
-# Send a real request (for integration testing in dev)
-yarn hmac-helper request \
-  --repo my-org/my-repo \
-  --secret <your-secret> \
-  --endpoint $DEPENDABOT_ENFORCER_API_ENDPOINT
-```
-
 ## Design
 
 ### Diagrams
 
-Each request is signed using HMAC-SHA256. The signing payload combines the repository name and a UTC timestamp, which is verified server-side against the stored secret. The timestamp must be in ISO 8601 UTC format with milliseconds zeroed (`.000Z` suffix), and the hex digest is prefixed with `sha256=`.
+Each run queries GitHub for open Dependabot alerts, evaluates alerts against severity-based age thresholds, and decides pass/fail according to the configured mode.
 
 ```mermaid
 sequenceDiagram
-    Action->>+Action: Read DEPENDABOT_ENFORCER_SECRET
-    Action->>Action: Generate UTC timestamp
-    Action->>Action: HMAC-SHA256(secret, "repo:timestamp")
-    Action->>+API: POST /check<br/>X-Hub-Repository, X-Hub-Timestamp, X-Hub-Signature-256
-    API->>API: Validate timestamp window
-    API->>API: Verify HMAC signature
-    API->>API: Check repository policy
-    API-->>-Action: 200 OK / 4xx policy violation
-    Action-->>-Runner: Pass / Fail check
+  Action->>+GitHub API: GET /repos/{owner}/{repo}/dependabot/alerts?state=open
+  GitHub API-->>-Action: Open Dependabot alerts (paginated)
+  Action->>Action: Evaluate severity + age thresholds
+  Action->>Action: Apply mode (enforce/report)
+  Action->>GitHub API: (optional) post PR summary comment
+  Action-->>-Runner: Pass / Fail check
 ```
 
-Every request includes the following signed headers:
+Dependabot alerts are retrieved from the GitHub API using the workflow token. Required headers are applied automatically:
 
-| Header | Example value | Description |
-| ------ | ------------- | ----------- |
-| `X-Hub-Repository` | `my-org/my-repo` | The full repository name in `owner/repo` format. Derived automatically from `github.repository`. |
-| `X-Hub-Timestamp` | `2026-03-03T12:00:00.000Z` | UTC timestamp used in signature generation. |
-| `X-Hub-Signature-256` | `sha256=a1b2c3...` | HMAC-SHA256 hex digest, prefixed with `sha256=`. |
+| Header | Description |
+| ------ | ----------- |
+| `Authorization: Bearer <token>` | Authenticates requests to the GitHub API. |
+| `Accept: application/vnd.github+json` | Requests GitHub REST API JSON responses. |
+| `X-GitHub-Api-Version: 2022-11-28` | Pins API behavior to a stable version. |
 
 ### Modularity
 
-The action is configurable via inputs (see [Inputs](#inputs)) and enforces the following authentication rules server-side. The action will fail with a descriptive message if any check does not pass:
+The action is configurable via inputs (see [Inputs](#inputs)) and evaluates open alerts against built-in age thresholds. In `enforce` mode, the workflow fails when thresholds are exceeded:
 
-| Rule | Window / Constraint | Error if violated |
-| ---- | ------------------- | ----------------- |
-| Timestamp must be valid ISO 8601 UTC | — | `INVALID_TIMESTAMP` |
-| Timestamp must not be older than 5 minutes | 300 000 ms | `TIMESTAMP_EXPIRED` |
-| Timestamp must not be more than 30 seconds in the future | 30 000 ms | `TIMESTAMP_FUTURE` |
-| Repository organisation must be in the allowlist | — | `FORBIDDEN_REPO` |
-| HMAC signature must match | — | `SIGNATURE_MISMATCH` |
-| Repository secret must exist | — | `SECRET_NOT_FOUND` |
+| Severity | Threshold | Result if exceeded in `enforce` mode |
+| -------- | --------- | ------------------------------------- |
+| `critical` | Older than 10 days | Workflow fails |
+| `high` | Older than 1000 days | Workflow fails |
+| `medium` | Older than 1000 days | Workflow fails |
+| `low` | Older than 1000 days | Workflow fails |
 
 Error handling behaviour:
 
 | Scenario | Behaviour |
 | -------- | --------- |
-| `DEPENDABOT_ENFORCER_SECRET` is missing or empty | Action fails immediately with a clear error message before any network call is made. |
-| `api-endpoint` is missing or malformed | Action fails immediately with a clear error message. |
-| Non-2xx response from API | Action fails and logs the status code and (redacted) response body. The secret is never included in logs. |
-| Request timeout | Action fails with a timeout error after the configured `timeout-ms`. |
-| `TIMESTAMP_EXPIRED` | Indicates the runner clock is significantly behind. Check runner time synchronisation. |
+| `github-token` is missing | Action fails immediately with a clear error message before any API call is made. |
+| Non-200 response from GitHub API | Action fails and logs the status code and response details. |
+| Dependabot alerts are disabled for the repository | Action logs an informational message and treats the run as passed. |
+| Token lacks required alert-read permission | Action fails with a permissions error. |
 
 Security considerations:
 
-- The shared secret is **never** written to logs, workflow summaries, or outputs.
-- The action uses `core.setSecret()` to mask the secret value in all log output.
-- Replay attacks are prevented by the 5-minute timestamp window enforced by the authoriser.
-- The repository name is validated against an organisation allowlist server-side.
+- The workflow token is masked with `core.setSecret()` and is never written to logs.
+- The action reads alert data directly from GitHub over HTTPS.
+- Use least-privilege workflow permissions (`vulnerability-alerts: read`, plus `pull-requests: write` for comments).
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Resolution |
 | ------- | ------------ | ---------- |
-| `secret input is required` | `DEPENDABOT_ENFORCER_SECRET` is not set or not passed to the action. | Add the secret in **Settings → Secrets and variables → Actions** and reference it as `secrets.DEPENDABOT_ENFORCER_SECRET` in the workflow. |
-| `api-endpoint input is required` | `DEPENDABOT_ENFORCER_API_ENDPOINT` variable is missing. | Set it as an organisation or repository variable. |
-| `TIMESTAMP_EXPIRED` | The runner clock is more than 5 minutes behind UTC. | Check the runner's time synchronisation. Self-hosted runners may need NTP configured. |
-| `SIGNATURE_MISMATCH` | The secret stored in GitHub does not match the secret registered in the backend DynamoDB table. | Verify the secret value matches on both sides. Use `yarn hmac-helper verify` locally to debug. |
-| `FORBIDDEN_REPO` | The repository's organisation is not in the backend allowlist. | Contact the platform team to add your organisation. |
-| `SECRET_NOT_FOUND` | The backend has no secret entry for this repository. | Contact the platform team to provision a secret for your repository. |
+| `github-token input is required` | `github-token` was not provided in the workflow `with:` block. | Add `github-token: ${{ secrets.GITHUB_TOKEN }}` to your action inputs. |
+| Dependabot alert permission error | Workflow token lacks required read permission for Dependabot alerts. | Add `permissions: vulnerability-alerts: read` to the workflow/job. |
+| Dependabot alerts are disabled for this repository | Dependabot alerts are not enabled in repository security settings. | Enable Dependabot alerts for the repository. |
 | PR comment not appearing | `github-token` input is missing, or the workflow lacks `pull-requests: write` permission. | Add `github-token: ${{ secrets.GITHUB_TOKEN }}` and the `permissions` block shown in the [Usage](#usage) example. |
 | Dependency exemption not working | `github-token` is missing, the event is not a `pull_request`, or the PR file list API call failed. | Check the workflow logs for warnings. Ensure the token is provided and the event trigger is `pull_request`. |
 
@@ -275,7 +224,7 @@ Raise an issue or open a pull request against this repository. Please ensure:
 
 - Code changes are covered by tests (`yarn test --run`)
 - Commits follow the repository conventions
-- Any changes to the signing algorithm are made in `src/lib/signing.ts` (the single source of truth) and covered by tests in `src/__tests__/signing.test.ts`
+- Any changes to alert evaluation logic are covered by corresponding tests in `src/__tests__/`
 
 ## Contacts
 
