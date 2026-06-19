@@ -170,6 +170,7 @@ async function deletePrComment(
         `GitHub API error deleting comment: HTTP ${status} ${responseBody}`,
       );
     }
+    console.info(`Deleted existing comment with ID ${commentId}`);
   } finally {
     client.dispose();
   }
@@ -188,6 +189,7 @@ async function upsertPrComment(
     const existing = comments.find(
       (c) => typeof c.body === "string" && c.body.includes(COMMENT_MARKER),
     );
+    console.info(`Found ${existing ? "existing" : "no"} comment for PR #${opts.prNumber}`);
     if (existing) {
       await deletePrComment(
         {
