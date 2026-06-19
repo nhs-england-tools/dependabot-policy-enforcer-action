@@ -6,6 +6,7 @@ const {
   mockSetSecret,
   mockSetFailed,
   mockInfo,
+  mockError,
   mockWarning,
   mockedgetDependabotAlerts,
   mockPostPrComment,
@@ -16,6 +17,7 @@ const {
   mockSetSecret: vi.fn(),
   mockSetFailed: vi.fn(),
   mockInfo: vi.fn(),
+  mockError: vi.fn(),
   mockWarning: vi.fn(),
   mockedgetDependabotAlerts: vi.fn(),
   mockPostPrComment: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock("@actions/core", () => ({
   setSecret: mockSetSecret,
   setFailed: mockSetFailed,
   info: mockInfo,
+  error: mockError,
   warning: mockWarning,
 }));
 

@@ -184,8 +184,39 @@ export class DependabotPolicyEvaluator {
 
   async evaluateDependabotResults(mode: string): Promise<PolicyResponse> {
     // Fetch open alerts and evaluate against policy thresholds
-
-    const alerts = await this.fetchOpenAlerts();
+    let alerts: DependabotAlert[]
+    try {
+      alerts = await this.fetchOpenAlerts();
+    }
+    catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof Error && message.includes("Dependabot alerts are disabled for this repository.")) {
+        core.info(`Dependabot alerts are disabled for this repository: ${this.repo}`);
+        return {
+          pipelinePasses: true,
+          mode,
+          repository: this.repo,
+          summary: {
+            totalOpenAlerts: null,
+            violatingAlerts: null,
+            oldestAlert: null,
+          },
+          findings: {
+            violations: {
+              critical: null,
+              high: null,
+              medium: null,
+              low: null,
+            },
+          },
+          message: "Dependabot alerts are disabled for this repository.",
+        };
+      }
+      else {
+        core.error(`Failed to fetch Dependabot alerts for ${this.repo}: ${message}`);
+        throw error;
+      }
+    }
     core.info(`Fetched Dependabot alerts, with total count: ${alerts.length}`);
 
     const thresholds = {

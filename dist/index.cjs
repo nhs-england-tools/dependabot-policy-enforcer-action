@@ -20200,7 +20200,37 @@ var DependabotPolicyEvaluator = class {
     };
   }
   async evaluateDependabotResults(mode) {
-    const alerts = await this.fetchOpenAlerts();
+    let alerts;
+    try {
+      alerts = await this.fetchOpenAlerts();
+    } catch (error2) {
+      const message = error2 instanceof Error ? error2.message : String(error2);
+      if (error2 instanceof Error && message.includes("Dependabot alerts are disabled for this repository.")) {
+        info(`Dependabot alerts are disabled for this repository: ${this.repo}`);
+        return {
+          pipelinePasses: true,
+          mode,
+          repository: this.repo,
+          summary: {
+            totalOpenAlerts: null,
+            violatingAlerts: null,
+            oldestAlert: null
+          },
+          findings: {
+            violations: {
+              critical: null,
+              high: null,
+              medium: null,
+              low: null
+            }
+          },
+          message: "Dependabot alerts are disabled for this repository."
+        };
+      } else {
+        error(`Failed to fetch Dependabot alerts for ${this.repo}: ${message}`);
+        throw error2;
+      }
+    }
     info(`Fetched Dependabot alerts, with total count: ${alerts.length}`);
     const thresholds = {
       critical: {
