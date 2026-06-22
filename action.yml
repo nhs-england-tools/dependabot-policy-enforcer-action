@@ -1,5 +1,5 @@
 name: "Dependabot Policy Enforcer"
-description: "Validates Dependabot policy compliance via HMAC-signed API call"
+description: "Validates Dependabot policy compliance"
 author: "NHS England Tools"
 
 inputs:
@@ -11,10 +11,9 @@ inputs:
     default: "enforce"
   github-token:
     description: >-
-      GitHub token used to post a policy summary comment on the pull request.
-      Use the built-in secrets.GITHUB_TOKEN. If omitted, no PR comment is posted.
-    required: false
-    default: ""
+      GitHub token used to fetch Dependabot alerts and post a policy summary comment on the pull request.
+      Use the built-in secrets.GITHUB_TOKEN.
+    required: true
 
 runs:
   using: "node24"

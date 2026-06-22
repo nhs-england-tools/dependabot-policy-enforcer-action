@@ -207,6 +207,7 @@ Security considerations:
 - The workflow token is masked with `core.setSecret()` and is never written to logs.
 - The action reads alert data directly from GitHub over HTTPS.
 - Use least-privilege workflow permissions (`vulnerability-alerts: read`, plus `pull-requests: write` for comments).
+  Note: no information is output on the actual vulnerability, output shows only aggregated figures.
 
 ## Troubleshooting
 

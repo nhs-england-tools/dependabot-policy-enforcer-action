@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DependabotPolicyEvaluator,
   type DependabotAlert,
-  type PolicyThresholds,
 } from "../../src/lib/dependabotAlertsFetcher.js";
+import type { PolicyThresholds } from "../../src/lib/policyConfig.js";
 import { getDependabotAlerts } from "../../src/lib/github.js";
 
 vi.mock("../../src/lib/github.js", () => ({
@@ -137,6 +137,28 @@ describe("DependabotPolicyEvaluator", () => {
       expect(result.pipelinePasses).toBe(false);
       expect(result.summary.violatingAlerts).toBe(1);
       expect(result.message).toBeUndefined();
+    });
+
+    it("handles disabled Dependabot alerts gracefully", async () => {
+      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
+      mockgetDependabotAlerts.mockRejectedValueOnce(new Error("Dependabot alerts are disabled for this repository."));
+
+      const result = await evaluator.evaluateDependabotResults("enforce");
+
+      expect(result.pipelinePasses).toBe(true);
+      expect(result.summary.totalOpenAlerts).toBeNull();
+      expect(result.summary.violatingAlerts).toBeNull();
+    });
+
+    it("shows 0 for totalOpenAlerts and violatingAlerts when there are no alerts", async () => {
+      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
+      mockgetDependabotAlerts.mockResolvedValueOnce([]);
+
+      const result = await evaluator.evaluateDependabotResults("enforce");
+
+      expect(result.pipelinePasses).toBe(true);
+      expect(result.summary.totalOpenAlerts).toBe(0);
+      expect(result.summary.violatingAlerts).toBe(0);
     });
   });
 });

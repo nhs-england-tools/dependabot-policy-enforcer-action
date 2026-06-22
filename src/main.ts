@@ -24,15 +24,6 @@ const LOG_STYLE = {
   red: "\x1b[31m",
 };
 
-function validateUrl(value: string): boolean {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function run(): Promise<void> {
   // ---------------------------------------------------------------
   // 1. Read inputs

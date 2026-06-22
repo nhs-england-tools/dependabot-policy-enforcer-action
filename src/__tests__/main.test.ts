@@ -12,6 +12,7 @@ const {
   mockPostPrComment,
   mockPostErrorPrComment,
   mockIsDependencyUpdate,
+  mockupsertPrComment
 } = vi.hoisted(() => ({
   mockGetInput: vi.fn(),
   mockSetSecret: vi.fn(),
@@ -23,6 +24,7 @@ const {
   mockPostPrComment: vi.fn(),
   mockPostErrorPrComment: vi.fn(),
   mockIsDependencyUpdate: vi.fn(),
+  mockupsertPrComment: vi.fn(),
 }));
 
 vi.mock("@actions/core", () => ({
@@ -37,6 +39,7 @@ vi.mock("@actions/core", () => ({
 vi.mock("../../src/lib/comment.js", () => ({
   postPrComment: mockPostPrComment,
   postErrorPrComment: mockPostErrorPrComment,
+  upsertPrComment: mockupsertPrComment,
 }));
 
 vi.mock("../../src/lib/filecheck.js", () => ({
@@ -153,6 +156,13 @@ describe("Action Entry Point (run)", () => {
     // ---------------------------------------------------------------
   // Input validation
   // ---------------------------------------------------------------
+
+  it("should mask github-token immediately after reading it", async () => {
+    await run();
+    expect(mockSetSecret).toHaveBeenCalledWith("gha-token-abc");
+  });
+
+
   it("should still call setFailed when github-token is absent", async () => {
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
@@ -285,10 +295,6 @@ describe("PR comment integration", () => {
     vi.useRealTimers();
   });
 
-  it("should mask github-token immediately after reading it", async () => {
-    await run();
-    expect(mockSetSecret).toHaveBeenCalledWith("gha-token-abc");
-  });
 
   it("should call postPrComment with correct args on a PR", async () => {
     await run();
@@ -311,12 +317,6 @@ describe("PR comment integration", () => {
   it("should not call postPrComment when github-token is not provided", async () => {
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret":
-          return "test-secret-value";
-        case "api-endpoint":
-          return "https://api.example.com/check";
-        case "timeout-ms":
-          return "10000";
         case "github-token":
           return "";
         default:
@@ -362,6 +362,51 @@ describe("PR comment integration", () => {
     expect(mockPostPrComment).toHaveBeenCalledOnce();
     expect(mockSetFailed).toHaveBeenCalled();
     expect(mockPostPrComment.mock.calls[0][4]).toBe("failed"); // status = failed
+  });
+
+  it("should pass info in comment when dependabot disabled", async () => {
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("Dependabot alerts are disabled for this repository."));
+
+    await run();
+
+    expect(mockPostPrComment).toHaveBeenCalledOnce();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockPostPrComment.mock.calls[0][4]).toBe("passed"); // status = passed
+    expect(mockPostPrComment).toHaveBeenCalledWith(
+      "gha-token-abc",
+      "test-org/test-repo",
+      12,
+      expect.objectContaining({
+        mode: "enforce",
+        repository: "test-repo",
+        summary: {
+          totalOpenAlerts: null,
+          violatingAlerts: null,
+          oldestAlert: null,
+        },
+        findings: {
+          violations: {
+            critical: null,
+            high: null,
+            medium: null,
+            low: null,
+          },
+        },
+        message: "Dependabot alerts are disabled for this repository.",
+        pipelinePasses: true
+      }),
+      "passed",
+      "enforce"
+    );
+  });
+
+  it("should warn but not fail when postPrComment throws non 2xx error", async () => {
+    mockPostPrComment.mockRejectedValue(new Error("403 Forbidden"));
+    await run();
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to post PR comment: 403 Forbidden"),
+    );
+    expect(mockSetFailed).not.toHaveBeenCalled();
   });
 
   it("should never include github-token in any logged message", async () => {
@@ -577,14 +622,8 @@ describe("Error-path PR comment", () => {
   it("should not call postErrorPrComment when github-token is absent", async () => {
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret":
-          return "test-secret-value";
-        case "api-endpoint":
-          return "https://api.example.com/check";
         case "mode":
           return "enforce";
-        case "timeout-ms":
-          return "10000";
         case "github-token":
           return "";
         default:
@@ -609,5 +648,16 @@ describe("Error-path PR comment", () => {
       expect.stringContaining("comment API down"),
     );
     expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining("403"));
+  });
+
+  it("should not call upsertPrComment when not on a pull request", async () => {
+    mockExtractPrNumber.mockReturnValue(null);
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    await run();
+
+    expect(mockPostErrorPrComment).toHaveBeenCalledOnce();
+    expect(mockPostErrorPrComment.mock.calls[0][2]).toBeNull();
+    expect(mockupsertPrComment).not.toHaveBeenCalled();
   });
 });

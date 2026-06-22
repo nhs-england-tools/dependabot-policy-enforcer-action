@@ -55,7 +55,7 @@ describe("getDependabotAlerts", () => {
             url: "url-1",
           },
         ]),
-        headers: new Map(),
+        headers: new Map([["link", "<https://api.github.com/page2>; rel=\"next\""]]),
       } as any)
       .mockResolvedValueOnce({
         status: 200,
