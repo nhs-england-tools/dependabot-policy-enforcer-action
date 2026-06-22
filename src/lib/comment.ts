@@ -7,6 +7,7 @@
 
 import { HttpClient } from "@actions/http-client";
 import { githubHeaders, USER_AGENT, GITHUB_API_BASE } from "./github.js";
+import { PolicyResponse } from "./dependabotAlertsFetcher.js";
 
 /** HTML marker embedded in every comment body, used to find and update it. */
 export const COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
@@ -15,14 +16,6 @@ export const COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
 // Response shape
 // ---------------------------------------------------------------------------
 
-export interface PolicyResponse {
-  pipelinePasses: string;
-  mode: string;
-  repository: string;
-  summary: Record<string, number>;
-  findings: Record<string, Array<unknown>>;
-  message?: string;
-}
 
 export type PolicyStatus = "passed" | "failed" | "exempted" | "error";
 
@@ -49,15 +42,19 @@ export function buildCommentBody(
 
   const modeLine = `**Mode:** ${mode}`;
   lines.push(modeLine);
-  const summary = policy.summary ?? {};
+  const summary = policy.summary;
   lines.push("", "### Summary:");
   for (const [key, value] of Object.entries(summary)) {
     lines.push(`- **${key}:** ${value}`);
   }
 
-  const violations = policy.findings ?? {};
+  const violations = policy.findings;
   lines.push("", "### Violations:");
-  for (const [key, value] of Object.entries(violations)) {
+  for (const [key, value] of Object.entries(violations.violations)) {
+    if (!Array.isArray(value)) {
+      lines.push(`- **${key}:** null`);
+      continue;
+    }
     lines.push(`- **${key}:** ${value.length}`);
   }
 
@@ -228,8 +225,7 @@ export async function postPrComment(
 
 export function buildErrorCommentBody(
   mode: string,
-  errorMessage: string,
-  statusCode: number | null,
+  errorMessage: unknown,
   repo: string,
 ): string {
   const [owner, repoName] = repo.split("/");
@@ -242,9 +238,7 @@ export function buildErrorCommentBody(
     `**Mode:** ${mode}`,
     "",
     "### Error:",
-    statusCode !== null
-      ? `The policy enforcement API returned an error (HTTP ${statusCode}).`
-      : `The policy enforcement API could not be reached: ${errorMessage}`,
+    `The policy enforcement failed with error: ${errorMessage}`,
     "",
     "This does **not** mean your repository has zero alerts — the check could not complete.",
     "Please contact the platform team or re-run the workflow.",
@@ -259,15 +253,13 @@ export async function postErrorPrComment(
   repo: string,
   prNumber: number | null,
   mode: string,
-  errorMessage: string,
-  statusCode: number | null,
+  errorMessage: unknown,
 ): Promise<void> {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split("/");
     const commentBody = buildErrorCommentBody(
       mode,
       errorMessage,
-      statusCode,
       repo,
     );
     await upsertPrComment(
