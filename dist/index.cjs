@@ -20257,6 +20257,27 @@ async function getPageOfFiles(client, url, headers) {
   return { files: pageFiles, hasNextPage };
 }
 
+// src/lib/policyConfig.ts
+var thresholds = {
+  critical: {
+    maxAgeDays: 10,
+    description: "Critical alerts must be addressed within 10 days"
+  },
+  high: {
+    maxAgeDays: 1e3,
+    description: "High alerts must be addressed within 1000 days"
+  },
+  medium: {
+    maxAgeDays: 1e3,
+    description: "Medium alerts must be addressed within 1000 days"
+  },
+  low: {
+    maxAgeDays: 1e3,
+    description: "Low alerts must be addressed within 1000 days"
+  }
+};
+var policyConfig_default = thresholds;
+
 // src/lib/dependabotAlertsFetcher.ts
 var RECOGNISED_SEVERITIES = /* @__PURE__ */ new Set([
   "critical",
@@ -20321,7 +20342,7 @@ var DependabotPolicyEvaluator = class {
   /**
    * Evaluate alerts against policy thresholds
    */
-  evaluateAlerts(alerts, thresholds) {
+  evaluateAlerts(alerts, thresholds2) {
     const violations = {
       critical: [],
       high: [],
@@ -20345,7 +20366,7 @@ var DependabotPolicyEvaluator = class {
         continue;
       }
       const severity = rawSeverity;
-      const threshold = thresholds[severity];
+      const threshold = thresholds2[severity];
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
           opened_at: alert.created_at,
@@ -20394,25 +20415,7 @@ var DependabotPolicyEvaluator = class {
       }
     }
     info(`Fetched Dependabot alerts, with total count: ${alerts.length}`);
-    const thresholds = {
-      critical: {
-        maxAgeDays: 10,
-        description: "Critical alerts must be addressed within 10 days"
-      },
-      high: {
-        maxAgeDays: 1e3,
-        description: "High alerts must be addressed within 1000 days"
-      },
-      medium: {
-        maxAgeDays: 1e3,
-        description: "Medium alerts must be addressed within 1000 days"
-      },
-      low: {
-        maxAgeDays: 1e3,
-        description: "Low alerts must be addressed within 1000 days"
-      }
-    };
-    const evaluation = this.evaluateAlerts(alerts, thresholds);
+    const evaluation = this.evaluateAlerts(alerts, policyConfig_default);
     info("Dependabot policy evaluation result finished");
     const pipelinePasses = mode === "report" || evaluation.violatingAlerts === 0;
     const result = {
