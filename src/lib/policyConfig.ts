@@ -19,7 +19,7 @@ const thresholds = {
         description: "Medium alerts must be addressed within 1000 days",
       },
       low: {
-        maxAgeDays: 1000,
+        maxAgeDays: 2,
         description: "Low alerts must be addressed within 1000 days",
       },
     };
