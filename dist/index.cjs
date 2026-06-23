@@ -20011,16 +20011,21 @@ function buildCommentBody(status, policy, mode, url) {
   }
   const violations = policy.findings;
   lines.push("", "### Violations:");
+  const violation_lines = [];
   for (const [key, value] of Object.entries(violations.violations)) {
     info(`Processing violations for severity: ${key}, value: ${JSON.stringify(value)}`);
     if (!Array.isArray(value)) {
-      lines.push(`- **${key}:** null`);
+      violation_lines.push(`- **${key}:** null`);
       continue;
     }
     if (!(value.length === 0)) {
-      lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      violation_lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
     }
   }
+  if (violation_lines.length === 0) {
+    violation_lines.push("None");
+  }
+  lines.push(...violation_lines);
   lines.push("", `### [View dependabot alerts](${url})`);
   return lines.join("\n");
 }
