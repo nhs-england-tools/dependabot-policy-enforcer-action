@@ -20015,7 +20015,7 @@ function buildCommentBody(status, policy, mode, url) {
       lines.push(`- **${key}:** null`);
       continue;
     }
-    lines.push(`- **${key}:** ${value.length}`);
+    lines.push(`- **${key}:** ${value.map((v) => v.url).join(", ")}`);
   }
   lines.push("", `### [View dependabot alerts](${url})`);
   return lines.join("\n");
@@ -20256,7 +20256,7 @@ async function getPageOfFiles(client, url, headers) {
 // src/lib/policyConfig.ts
 var thresholds = {
   critical: {
-    maxAgeDays: 10,
+    maxAgeDays: 5,
     description: "Critical alerts must be addressed within 10 days"
   },
   high: {
@@ -20268,7 +20268,7 @@ var thresholds = {
     description: "Medium alerts must be addressed within 1000 days"
   },
   low: {
-    maxAgeDays: 1e3,
+    maxAgeDays: 2,
     description: "Low alerts must be addressed within 1000 days"
   }
 };
@@ -20365,7 +20365,7 @@ var DependabotPolicyEvaluator = class {
       const threshold = thresholds2[severity];
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
-          opened_at: alert.created_at,
+          url: alert.url,
           age: this.formatAge(ageDays)
         });
       }
