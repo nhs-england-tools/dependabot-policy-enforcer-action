@@ -5,42 +5,41 @@ const {
   mockGetInput,
   mockSetSecret,
   mockSetFailed,
-  mockSetOutput,
   mockInfo,
+  mockError,
   mockWarning,
-  mockSendPolicyRequest,
+  mockedgetDependabotAlerts,
   mockPostPrComment,
   mockPostErrorPrComment,
   mockIsDependencyUpdate,
+  mockupsertPrComment
 } = vi.hoisted(() => ({
   mockGetInput: vi.fn(),
   mockSetSecret: vi.fn(),
   mockSetFailed: vi.fn(),
-  mockSetOutput: vi.fn(),
   mockInfo: vi.fn(),
+  mockError: vi.fn(),
   mockWarning: vi.fn(),
-  mockSendPolicyRequest: vi.fn(),
+  mockedgetDependabotAlerts: vi.fn(),
   mockPostPrComment: vi.fn(),
   mockPostErrorPrComment: vi.fn(),
   mockIsDependencyUpdate: vi.fn(),
+  mockupsertPrComment: vi.fn(),
 }));
 
 vi.mock("@actions/core", () => ({
   getInput: mockGetInput,
   setSecret: mockSetSecret,
   setFailed: mockSetFailed,
-  setOutput: mockSetOutput,
   info: mockInfo,
+  error: mockError,
   warning: mockWarning,
-}));
-
-vi.mock("../../src/lib/request.js", () => ({
-  sendPolicyRequest: mockSendPolicyRequest,
 }));
 
 vi.mock("../../src/lib/comment.js", () => ({
   postPrComment: mockPostPrComment,
   postErrorPrComment: mockPostErrorPrComment,
+  upsertPrComment: mockupsertPrComment,
 }));
 
 vi.mock("../../src/lib/filecheck.js", () => ({
@@ -49,247 +48,140 @@ vi.mock("../../src/lib/filecheck.js", () => ({
 
 vi.mock("../../src/lib/github.js", () => ({
   extractPrNumber: vi.fn().mockReturnValue(null),
+  getDependabotAlerts: mockedgetDependabotAlerts,
+  isDependabotEnabled: vi.fn().mockResolvedValue(true),
 }));
 
 // Import run — the top-level run() call in main.ts will execute with mocked deps
 // which is fine since all mocks return undefined/empty by default
 import { run } from "../../src/main.js";
-import { isDependencyUpdate } from "../../src/lib/filecheck.js";
-import { mock } from "node:test";
 
 describe("Action Entry Point (run)", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-18T00:00:00.000Z"));
     vi.clearAllMocks();
     process.env = { ...originalEnv, GITHUB_REPOSITORY: "test-org/test-repo" };
 
     // Default input mapping
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret":
-          return "test-secret-value";
-        case "api-endpoint":
-          return "https://api.example.com/check";
         case "mode":
           return "enforce";
-        case "timeout-ms":
-          return "10000";
+        case "github-token":
+          return "gha-token-abc";
         default:
           return "";
       }
     });
 
     // Default successful response
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 200,
-      body: '{"pipelinePasses": true,"status":"compliant"}',
-      durationMs: 42,
-    });
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "MODERATE",
+      created_at: "2026-06-16T09:49:05Z",
+    }]);
   });
 
   afterEach(() => {
     process.env = originalEnv;
-  });
-
-  // ---------------------------------------------------------------
-  // Secret masking
-  // ---------------------------------------------------------------
-
-  it("should call setSecret immediately with the secret value", async () => {
-    await run();
-
-    expect(mockSetSecret).toHaveBeenCalledWith("test-secret-value");
-    // setSecret should be called before any setFailed/setOutput
-    const setSecretOrder = mockSetSecret.mock.invocationCallOrder[0];
-    for (const call of mockSetFailed.mock.invocationCallOrder) {
-      expect(setSecretOrder).toBeLessThan(call);
-    }
-  });
-
-  it("should never include the secret in any setFailed or info call", async () => {
-    mockSendPolicyRequest.mockRejectedValue(new Error("Network failure"));
-    await run();
-
-    for (const call of mockSetFailed.mock.calls) {
-      expect(String(call[0])).not.toContain("test-secret-value");
-    }
-    for (const call of mockInfo.mock.calls) {
-      expect(String(call[0])).not.toContain("test-secret-value");
-    }
+    vi.useRealTimers();
   });
 
   // ---------------------------------------------------------------
   // Successful request
   // ---------------------------------------------------------------
 
-  it("should set outputs on successful 2xx response", async () => {
-    await run();
-
-    expect(mockSetOutput).toHaveBeenCalledWith("status-code", "200");
-    expect(mockSetOutput).toHaveBeenCalledWith(
-      "response-body",
-      '{"pipelinePasses": true,"status":"compliant"}',
-    );
-    expect(mockSetFailed).not.toHaveBeenCalled();
-  });
 
   it("should log success info", async () => {
     await run();
 
-    expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining("passed"));
-    expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining("200"));
-  });
-
-  it("should pass correct options to sendPolicyRequest", async () => {
-    await run();
-
-    expect(mockSendPolicyRequest).toHaveBeenCalledWith({
-      repo: "test-org/test-repo",
-      secret: "test-secret-value",
-      endpoint: "https://api.example.com/check",
-      mode: "enforce",
-      timeoutMs: 10000,
-    });
+    expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining("Policy check passed"));
   });
 
   it("should accept report mode", async () => {
     mockGetInput.mockImplementation((name: string) => {
-      if (name === "secret") return "test-secret-value";
-      if (name === "api-endpoint") return "https://api.example.com/check";
+      if (name === "github-token") return "gha-token-abc";
       if (name === "mode") return "report";
-      if (name === "timeout-ms") return "10000";
       return "";
     });
 
     await run();
 
     expect(mockSetFailed).not.toHaveBeenCalled();
-    expect(mockSendPolicyRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        repo: "test-org/test-repo",
-        secret: "test-secret-value",
-        endpoint: "https://api.example.com/check",
-        mode: "report",
-        timeoutMs: 10000,
-      }),
-    );
   });
 
-  it("should fail the action if pipelinePasses is false in a 2xx response", async () => {
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 200,
-      body: '{"pipelinePasses": false,"status":"non-compliant"}',
-      durationMs: 50,
-    });
+  it("should fail the action if there is violating alert", async () => {
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "CRITICAL",
+      created_at: "2026-06-01T09:49:05Z",
+    }]);
 
     await run();
 
     expect(mockSetFailed).toHaveBeenCalledWith(
       expect.stringContaining("Policy check failed"),
     );
-    expect(mockSetOutput).toHaveBeenCalledWith("status-code", "200");
-    expect(mockSetOutput).toHaveBeenCalledWith(
-      "response-body",
-      '{"pipelinePasses": false,"status":"non-compliant"}',
-    );
   });
 
-  it("should log message and response if pipelinePasses is true with a message", async () => {
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 200,
-      body: '{"pipelinePasses": true,"message":"Some failure"}',
-      durationMs: 50,
-    });
+  it("should not fail the action if there is violating alert, but report mode", async () => {
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "CRITICAL",
+      created_at: "2026-06-01T09:49:05Z",
+    }]);
 
-    await run();
-
-    const loggedOutput = mockInfo.mock.calls
-      .map(([msg]) => String(msg))
-      .join("\n");
-    expect(loggedOutput).toContain("Policy check message:");
-    expect(loggedOutput).toContain("Some failure");
-  });
-
-  it("should log generic success message if pipelinePasses is true without a message", async () => {
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 200,
-      body: '{"pipelinePasses": true}',
-      durationMs: 50,
+    mockGetInput.mockImplementation((name: string) => {
+      if (name === "github-token") return "gha-token-abc";
+      if (name === "mode") return "report";
+      return "";
     });
 
     await run();
 
     expect(mockInfo).toHaveBeenCalledWith(
-      expect.stringContaining("Policy check passed"),
+      expect.stringContaining("Policy check message:"),
     );
+
+    const loggedOutput = mockInfo.mock.calls
+      .map(([msg]) => String(msg))
+      .join("\n");
+    expect(loggedOutput).toContain("Policy check message:");
+    expect(loggedOutput).toContain("Dependabot policy check passed in report mode, but 1 alert(s) exceed the defined thresholds");
   });
 
-  // ---------------------------------------------------------------
-  // Non-2xx responses
+    // ---------------------------------------------------------------
+  // Input validation
   // ---------------------------------------------------------------
 
-  it("should call setFailed on non-2xx response", async () => {
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 403,
-      body: '{"error":"FORBIDDEN_REPO"}',
-      durationMs: 50,
-    });
-
+  it("should mask github-token immediately after reading it", async () => {
     await run();
-
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining("403"));
-    // Outputs should still be set
-    expect(mockSetOutput).toHaveBeenCalledWith("status-code", "403");
+    expect(mockSetSecret).toHaveBeenCalledWith("gha-token-abc");
   });
 
-  // ---------------------------------------------------------------
-  // Missing / empty inputs
-  // ---------------------------------------------------------------
 
-  it("should fail with descriptive message when secret is empty", async () => {
+  it("should still call setFailed when github-token is absent", async () => {
     mockGetInput.mockImplementation((name: string) => {
-      if (name === "secret") return "";
-      if (name === "api-endpoint") return "https://api.example.com/check";
-      return "";
+      switch (name) {
+        case "mode":
+          return "enforce";
+        case "timeout-ms":
+          return "10000";
+        case "github-token":
+          return "";
+        default:
+          return "";
+      }
     });
 
     await run();
 
     expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("DEPENDABOT_ENFORCER_SECRET"),
+      expect.stringContaining("github-token input is required. Please provide a GitHub token with appropriate permissions."),
     );
-    expect(mockSendPolicyRequest).not.toHaveBeenCalled();
-  });
-
-  it("should fail with descriptive message when api-endpoint is empty", async () => {
-    mockGetInput.mockImplementation((name: string) => {
-      if (name === "secret") return "test-secret-value";
-      if (name === "api-endpoint") return "";
-      return "";
-    });
-
-    await run();
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("api-endpoint"),
-    );
-    expect(mockSendPolicyRequest).not.toHaveBeenCalled();
-  });
-
-  it("should fail when api-endpoint is not a valid URL", async () => {
-    mockGetInput.mockImplementation((name: string) => {
-      if (name === "secret") return "test-secret-value";
-      if (name === "api-endpoint") return "not-a-url";
-      return "";
-    });
-
-    await run();
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("not a valid URL"),
-    );
-    expect(mockSendPolicyRequest).not.toHaveBeenCalled();
   });
 
   it("should fail when GITHUB_REPOSITORY is not set", async () => {
@@ -300,31 +192,13 @@ describe("Action Entry Point (run)", () => {
     expect(mockSetFailed).toHaveBeenCalledWith(
       expect.stringContaining("GITHUB_REPOSITORY"),
     );
-    expect(mockSendPolicyRequest).not.toHaveBeenCalled();
-  });
-
-  it("should fail when timeout-ms is not a valid number", async () => {
-    mockGetInput.mockImplementation((name: string) => {
-      if (name === "secret") return "test-secret-value";
-      if (name === "api-endpoint") return "https://api.example.com/check";
-      if (name === "timeout-ms") return "abc";
-      return "";
-    });
-
-    await run();
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("timeout-ms"),
-    );
-    expect(mockSendPolicyRequest).not.toHaveBeenCalled();
+    expect(mockedgetDependabotAlerts).not.toHaveBeenCalled();
   });
 
   it("should fail when mode is not enforce or report", async () => {
     mockGetInput.mockImplementation((name: string) => {
-      if (name === "secret") return "test-secret-value";
-      if (name === "api-endpoint") return "https://api.example.com/check";
+      if (name === "github-token") return "gha-token-abc";
       if (name === "mode") return "invalid-mode";
-      if (name === "timeout-ms") return "10000";
       return "";
     });
 
@@ -333,36 +207,29 @@ describe("Action Entry Point (run)", () => {
     expect(mockSetFailed).toHaveBeenCalledWith(
       expect.stringContaining('mode must be either "enforce" or "report"'),
     );
-    expect(mockSendPolicyRequest).not.toHaveBeenCalled();
+    expect(mockedgetDependabotAlerts).not.toHaveBeenCalled();
   });
+
+
   // ---------------------------------------------------------------
-  // Network / unexpected errors
+  // Errors from mockedgetDependabotAlerts
   // ---------------------------------------------------------------
 
-  it("should catch and report network errors", async () => {
-    mockSendPolicyRequest.mockRejectedValue(new Error("ECONNREFUSED"));
+  it("should call setFailed on non-2xx response", async () => {
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("403 Forbidden"));
 
     await run();
 
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("ECONNREFUSED"),
-    );
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining("Unexpected error"));
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining("403 Forbidden"));
   });
 
-  it("should catch and report timeout errors", async () => {
-    mockSendPolicyRequest.mockRejectedValue(
-      new Error("Request timed out after 10000ms"),
-    );
-
-    await run();
-
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("timed out"),
-    );
-  });
+//   // ---------------------------------------------------------------
+//   // Network / unexpected errors
+//   // ---------------------------------------------------------------
 
   it("should handle non-Error throws gracefully", async () => {
-    mockSendPolicyRequest.mockRejectedValue("string error");
+    mockedgetDependabotAlerts.mockRejectedValue("string error");
 
     await run();
 
@@ -383,6 +250,9 @@ describe("PR comment integration", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-18T00:00:00.000Z"));
+
     process.env = {
       ...originalEnv,
       GITHUB_REPOSITORY: "test-org/test-repo",
@@ -407,57 +277,46 @@ describe("PR comment integration", () => {
       }
     });
 
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 200,
-      body: '{"pipelinePasses":true,"mode":"enforce", "summary": {"totalOpenAlerts": 0, "violatingAlerts": 0}, "findings": {"critical": [], "medium": [], "low": []}}',
-      durationMs: 30,
-    });
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "CRITICAL",
+      created_at: "2026-06-16T09:49:05Z",
+    }]);
 
     mockPostPrComment.mockResolvedValue(undefined);
 
     const githubMod = await import("../../src/lib/github.js");
-    mockExtractPrNumber = githubMod.extractPrNumber as ReturnType<
-      typeof vi.fn
-    >;
+    mockExtractPrNumber = githubMod.extractPrNumber as ReturnType<typeof vi.fn>;
     mockExtractPrNumber.mockReturnValue(12);
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    vi.useRealTimers();
   });
 
-  it("should mask github-token immediately after reading it", async () => {
-    await run();
-    expect(mockSetSecret).toHaveBeenCalledWith("gha-token-abc");
-  });
 
   it("should call postPrComment with correct args on a PR", async () => {
     await run();
 
     expect(mockPostPrComment).toHaveBeenCalledOnce();
     const call = mockPostPrComment.mock.calls[0];
-    expect(call[0]).toBe("gha-token-abc");     // githubToken
+    expect(call[0]).toBe("gha-token-abc"); // githubToken
     expect(call[1]).toBe("test-org/test-repo"); // repo
-    expect(call[2]).toBe(12);                   // prNumber
-    expect(call[4]).toBe('passed');              // status
-    expect(call[5]).toBe("enforce");             // mode
+    expect(call[2]).toBe(12); // prNumber
+    expect(call[4]).toBe("passed"); // status
+    expect(call[5]).toBe("enforce"); // mode
   });
 
   it("should not log a separate PR comment info message", async () => {
     await run();
     const infoMessages = mockInfo.mock.calls.map(([m]) => String(m));
-    expect(infoMessages.some(m => m.includes("PR comment"))).toBe(false);
+    expect(infoMessages.some((m) => m.includes("PR comment"))).toBe(false);
   });
 
   it("should not call postPrComment when github-token is not provided", async () => {
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret":
-          return "test-secret-value";
-        case "api-endpoint":
-          return "https://api.example.com/check";
-        case "timeout-ms":
-          return "10000";
         case "github-token":
           return "";
         default:
@@ -490,34 +349,68 @@ describe("PR comment integration", () => {
     expect(mockSetFailed).not.toHaveBeenCalled();
   });
 
-  it("should still set outputs even when comment posting fails", async () => {
-    mockPostPrComment.mockRejectedValue(new Error("network error"));
-
-    await run();
-
-    expect(mockSetOutput).toHaveBeenCalledWith("status-code", "200");
-    expect(mockSetOutput).toHaveBeenCalledWith(
-      "response-body",
-      expect.any(String),
-    );
-  });
-
   it("should call postPrComment and setFailed when pipelinePasses is false", async () => {
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 200,
-      body: '{"pipelinePasses":"false","status":"non-compliant","summary":{},"findings":{"critical": [], "medium": [], "low": []}}',
-      durationMs: 50,
-    });
+
+    mockedgetDependabotAlerts.mockResolvedValue([{
+      url: "url-1",
+      severity: "CRITICAL",
+      created_at: "2026-06-01T09:49:05Z",
+    }]);
 
     await run();
 
     expect(mockPostPrComment).toHaveBeenCalledOnce();
-    expect(mockPostPrComment.mock.calls[0][4]).toBe('failed'); // status = failed
     expect(mockSetFailed).toHaveBeenCalled();
+    expect(mockPostPrComment.mock.calls[0][4]).toBe("failed"); // status = failed
+  });
+
+  it("should pass info in comment when dependabot disabled", async () => {
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("Dependabot alerts are disabled for this repository."));
+
+    await run();
+
+    expect(mockPostPrComment).toHaveBeenCalledOnce();
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    expect(mockPostPrComment.mock.calls[0][4]).toBe("passed"); // status = passed
+    expect(mockPostPrComment).toHaveBeenCalledWith(
+      "gha-token-abc",
+      "test-org/test-repo",
+      12,
+      expect.objectContaining({
+        mode: "enforce",
+        repository: "test-repo",
+        summary: {
+          totalOpenAlerts: null,
+          violatingAlerts: null,
+          oldestAlert: null,
+        },
+        findings: {
+          violations: {
+            critical: null,
+            high: null,
+            medium: null,
+            low: null,
+          },
+        },
+        message: "Dependabot alerts are disabled for this repository.",
+        pipelinePasses: true
+      }),
+      "passed",
+      "enforce"
+    );
+  });
+
+  it("should warn but not fail when postPrComment throws non 2xx error", async () => {
+    mockPostPrComment.mockRejectedValue(new Error("403 Forbidden"));
+    await run();
+    expect(mockWarning).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to post PR comment: 403 Forbidden"),
+    );
+    expect(mockSetFailed).not.toHaveBeenCalled();
   });
 
   it("should never include github-token in any logged message", async () => {
-    mockPostPrComment.mockRejectedValue(new Error('some error'))
+    mockPostPrComment.mockRejectedValue(new Error("some error"));
     await run();
 
     for (const call of [
@@ -539,6 +432,8 @@ describe("Package file change detection in enforce mode", () => {
   const originalEnv = process.env;
 
   beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-18T00:00:00.000Z"));
     vi.clearAllMocks();
     process.env = {
       ...originalEnv,
@@ -549,21 +444,28 @@ describe("Package file change detection in enforce mode", () => {
 
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret": return "test-secret-value";
-        case "api-endpoint": return "https://api.example.com/check";
-        case "mode": return "enforce";
-        case "timeout-ms": return "10000";
-        case "github-token": return "gha-token-abc";
-        default: return "";
+        case "mode":
+          return "enforce";
+        case "github-token":
+          return "gha-token-abc";
+        default:
+          return "";
       }
     });
 
     // Policy response — pipelinePasses is false to trigger the guard
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 200,
-      body: '{"pipelinePasses":false,"summary":{"totalOpenAlerts":3}}',
-      durationMs: 20,
-    });
+    mockedgetDependabotAlerts.mockResolvedValue([
+        {
+            url: "url-1",
+            severity: "CRITICAL",
+            created_at: "2026-06-01T09:49:05Z",
+        },
+        {
+            url: "url-2",
+            severity: "CRITICAL",
+            created_at: "2026-06-01T09:49:05Z",
+        }
+    ]);
 
     mockPostPrComment.mockResolvedValue(undefined);
     mockIsDependencyUpdate.mockResolvedValue(false);
@@ -584,20 +486,22 @@ describe("Package file change detection in enforce mode", () => {
 
     expect(mockSetFailed).not.toHaveBeenCalled();
     expect(mockPostPrComment).toHaveBeenCalledOnce();
-    expect(mockPostPrComment.mock.calls[0][4]).toBe('exempted');
+    expect(mockPostPrComment.mock.calls[0][4]).toBe("exempted");
   });
-
 
   it("should log summary info when package files have been changed", async () => {
     mockIsDependencyUpdate.mockResolvedValue(true);
 
     await run();
 
-    const infoMessages = mockInfo.mock.calls.map((args: unknown[]) => String(args[0])).join("\n");
-    expect(infoMessages).toContain("This PR changes dependency package or github action files. Allowing step to succeed.");
+    const infoMessages = mockInfo.mock.calls
+      .map((args: unknown[]) => String(args[0]))
+      .join("\n");
+    expect(infoMessages).toContain(
+      "This PR changes dependency package or github action files. Allowing step to succeed.",
+    );
     expect(infoMessages).toContain("Summary");
-    expect(infoMessages).toContain('"totalOpenAlerts": 3');
-
+    expect(infoMessages).toContain('"totalOpenAlerts": 2');
   });
 
   it("should still call setFailed when no package files are changed", async () => {
@@ -605,26 +509,6 @@ describe("Package file change detection in enforce mode", () => {
 
     await run();
 
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("Policy check failed"),
-    );
-  });
-
-  it("should still call setFailed when github-token is absent", async () => {
-    mockGetInput.mockImplementation((name: string) => {
-      switch (name) {
-        case "secret": return "test-secret-value";
-        case "api-endpoint": return "https://api.example.com/check";
-        case "mode": return "enforce";
-        case "timeout-ms": return "10000";
-        case "github-token": return "";
-        default: return "";
-      }
-    });
-
-    await run();
-
-    expect(mockIsDependencyUpdate).not.toHaveBeenCalled();
     expect(mockSetFailed).toHaveBeenCalledWith(
       expect.stringContaining("Policy check failed"),
     );
@@ -657,12 +541,12 @@ describe("Package file change detection in enforce mode", () => {
   it("should not apply the package-file check in report mode", async () => {
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret": return "test-secret-value";
-        case "api-endpoint": return "https://api.example.com/check";
-        case "mode": return "report";
-        case "timeout-ms": return "10000";
-        case "github-token": return "gha-token-abc";
-        default: return "";
+        case "mode":
+          return "report";
+        case "github-token":
+          return "gha-token-abc";
+        default:
+          return "";
       }
     });
 
@@ -692,12 +576,18 @@ describe("Error-path PR comment", () => {
 
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret": return "test-secret-value";
-        case "api-endpoint": return "https://api.example.com/check";
-        case "mode": return "enforce";
-        case "timeout-ms": return "10000";
-        case "github-token": return "gha-token-abc";
-        default: return "";
+        case "secret":
+          return "test-secret-value";
+        case "api-endpoint":
+          return "https://api.example.com/check";
+        case "mode":
+          return "enforce";
+        case "timeout-ms":
+          return "10000";
+        case "github-token":
+          return "gha-token-abc";
+        default:
+          return "";
       }
     });
 
@@ -713,29 +603,8 @@ describe("Error-path PR comment", () => {
     process.env = originalEnv;
   });
 
-  it("should call postErrorPrComment on non-2xx API response", async () => {
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 500,
-      body: '{"error":"INTERNAL_SERVER_ERROR"}',
-      durationMs: 80,
-    });
-
-    await run();
-
-    expect(mockPostErrorPrComment).toHaveBeenCalledOnce();
-    expect(mockPostErrorPrComment).toHaveBeenCalledWith(
-      "gha-token-abc",
-      "test-org/test-repo",
-      4,
-      "enforce",
-      '{"error":"INTERNAL_SERVER_ERROR"}',
-      500,
-    );
-    expect(mockSetFailed).toHaveBeenCalled();
-  });
-
   it("should call postErrorPrComment with null statusCode on unexpected error", async () => {
-    mockSendPolicyRequest.mockRejectedValue(new Error("ECONNREFUSED"));
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("ECONNREFUSED"));
 
     await run();
 
@@ -746,7 +615,6 @@ describe("Error-path PR comment", () => {
       4,
       "enforce",
       "ECONNREFUSED",
-      null,
     );
     expect(mockSetFailed).toHaveBeenCalled();
   });
@@ -754,20 +622,16 @@ describe("Error-path PR comment", () => {
   it("should not call postErrorPrComment when github-token is absent", async () => {
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret": return "test-secret-value";
-        case "api-endpoint": return "https://api.example.com/check";
-        case "mode": return "enforce";
-        case "timeout-ms": return "10000";
-        case "github-token": return "";
-        default: return "";
+        case "mode":
+          return "enforce";
+        case "github-token":
+          return "";
+        default:
+          return "";
       }
     });
 
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 500,
-      body: 'error',
-      durationMs: 10,
-    });
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("ECONNREFUSED"));
 
     await run();
 
@@ -775,11 +639,7 @@ describe("Error-path PR comment", () => {
   });
 
   it("should warn but not fail if postErrorPrComment throws on non-2xx path", async () => {
-    mockSendPolicyRequest.mockResolvedValue({
-      statusCode: 403,
-      body: 'Forbidden',
-      durationMs: 10,
-    });
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("403 Forbidden"));
     mockPostErrorPrComment.mockRejectedValue(new Error("comment API down"));
 
     await run();
@@ -787,22 +647,17 @@ describe("Error-path PR comment", () => {
     expect(mockWarning).toHaveBeenCalledWith(
       expect.stringContaining("comment API down"),
     );
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("403"),
-    );
+    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining("403"));
   });
 
-  it("should silently swallow postErrorPrComment failure in catch block", async () => {
-    mockSendPolicyRequest.mockRejectedValue(new Error("timeout"));
-    mockPostErrorPrComment.mockRejectedValue(new Error("secondary failure"));
+  it("should not call upsertPrComment when not on a pull request", async () => {
+    mockExtractPrNumber.mockReturnValue(null);
+    mockedgetDependabotAlerts.mockRejectedValue(new Error("ECONNREFUSED"));
 
     await run();
 
-    expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("timeout"),
-    );
-    expect(mockWarning).not.toHaveBeenCalledWith(
-      expect.stringContaining("secondary failure"),
-    );
+    expect(mockPostErrorPrComment).toHaveBeenCalledOnce();
+    expect(mockPostErrorPrComment.mock.calls[0][2]).toBeNull();
+    expect(mockupsertPrComment).not.toHaveBeenCalled();
   });
 });
