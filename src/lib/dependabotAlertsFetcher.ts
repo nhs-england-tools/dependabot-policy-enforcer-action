@@ -159,6 +159,7 @@ export class DependabotPolicyEvaluator {
       // Check if alert exceeds threshold
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
+          number: alert.number,
           url: alert.url,
           age: this.formatAge(ageDays),
         });
