@@ -55,7 +55,7 @@ export function buildCommentBody(
       lines.push(`- **${key}:** null`);
       continue;
     }
-    lines.push(`- **${key}:** ${value.length}`);
+    lines.push(`- **${key}:** ${value.map(v => v.url).join(", ")}`);
   }
 
   lines.push("", `### [View dependabot alerts](${url})`);

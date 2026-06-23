@@ -7,7 +7,7 @@ export interface PolicyThresholds {
 
 const thresholds = {
       critical: {
-        maxAgeDays: 10,
+        maxAgeDays: 5,
         description: "Critical alerts must be addressed within 10 days",
       },
       high: {
