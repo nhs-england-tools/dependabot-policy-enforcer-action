@@ -20022,8 +20022,6 @@ function buildCommentBody(status, policy, mode, url) {
     }
   }
   lines.push("", `### [View dependabot alerts](${url})`);
-  info(`Generated comment body:
-${lines.join("\n")}`);
   return lines.join("\n");
 }
 async function withRetry(fn, retries = 1, delayMs = 2e3) {
@@ -20274,7 +20272,7 @@ var thresholds = {
     description: "Medium alerts must be addressed within 1000 days"
   },
   low: {
-    maxAgeDays: 2,
+    maxAgeDays: 1e3,
     description: "Low alerts must be addressed within 1000 days"
   }
 };
