@@ -64,6 +64,7 @@ export async function getDependabotAlerts(token: string, owner: string, repo: st
   return allAlerts.map((alert: any) => ({
     severity: alert.security_vulnerability.severity,
     url: alert.url,
+    number: alert.number,
     created_at: alert.created_at,
   }))
 }

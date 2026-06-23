@@ -207,11 +207,11 @@ describe("buildCommentBody", () => {
         findings: {
           violations: {
             critical: [
-              { url: "url-1", age: "10 days" },
-              { url: "url-2", age: "5 days" }
+              { url: "url-1", age: "10 days", number: 1 },
+              { url: "url-2", age: "5 days", number: 2 }
             ],
             high: [],
-            medium: [{ url: "url-3", age: "8 days" }],
+            medium: [{ url: "url-3", age: "8 days", number: 3 }],
             low: [],
           },
         },
@@ -219,10 +219,10 @@ describe("buildCommentBody", () => {
       "enforce",
       "https://example.com/report",
     );
-    expect(body).toContain(`**critical:** url-1, url-2`);
-    expect(body).toContain(`**high:**`);
-    expect(body).toContain(`**medium:** url-3`);
-    expect(body).toContain(`**low:**`);
+    expect(body).toContain(`**critical:** [1](url-1), [2](url-2)`);
+    expect(body).not.toContain(`**high:**`);
+    expect(body).toContain(`**medium:** [3](url-3)`);
+    expect(body).not.toContain(`**low:**`);
   });
 
   it("should render empty violations with empty", () => {
@@ -235,10 +235,10 @@ describe("buildCommentBody", () => {
     const violationsIdx = body.indexOf("### Violations:");
     const afterViolations = body.indexOf("### [View dependabot alerts]");
     const between = body.slice(violationsIdx, afterViolations);
-    expect(between).toContain("- **critical:**");
-    expect(between).toContain("- **high:**");
-    expect(between).toContain("- **medium:**");
-    expect(between).toContain("- **low:**");
+    expect(between).not.toContain("- **critical:**");
+    expect(between).not.toContain("- **high:**");
+    expect(between).not.toContain("- **medium:**");
+    expect(between).not.toContain("- **low:**");
   });
 
   it("should render null violations when dependabot disabled", () => {
@@ -273,7 +273,7 @@ describe("postPrComment", () => {
     summary: { total: 0 },
     findings: {
       violations: {
-        critical: [{ openedAt: "2024-06-01T00:00:00Z", age: "10 days" }],
+        critical: [{ age: "10 days", url: "url-1", number: 1 }],
         high: [],
         medium: [],
         low: [],

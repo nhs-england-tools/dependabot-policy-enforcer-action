@@ -35,6 +35,7 @@ export interface DependabotAlert {
 
 export interface AlertViolation {
   url: string;
+  number: number;
   age: string;
 }
 
