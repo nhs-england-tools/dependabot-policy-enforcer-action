@@ -200,7 +200,7 @@ describe("buildCommentBody", () => {
     expect(body).toContain("### Violations:");
   });
 
-  it("should render violations as count bullet list", () => {
+  it("should render violations with link", () => {
     const body = buildCommentBody(
       "failed",
       makePolicy({
@@ -219,9 +219,9 @@ describe("buildCommentBody", () => {
       "enforce",
       "https://example.com/report",
     );
-    expect(body).toContain(`**critical:** [1](url-1), [2](url-2)`);
+    expect(body).toContain(`**critical:** [1](https://example.com/report/1), [2](https://example.com/report/2)`);
     expect(body).not.toContain(`**high:**`);
-    expect(body).toContain(`**medium:** [3](url-3)`);
+    expect(body).toContain(`**medium:** [3](https://example.com/report/3)`);
     expect(body).not.toContain(`**low:**`);
   });
 

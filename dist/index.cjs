@@ -20012,12 +20012,13 @@ function buildCommentBody(status, policy, mode, url) {
   const violations = policy.findings;
   lines.push("", "### Violations:");
   for (const [key, value] of Object.entries(violations.violations)) {
+    info(`Processing violations for severity: ${key}, value: ${JSON.stringify(value)}`);
     if (!Array.isArray(value)) {
       lines.push(`- **${key}:** null`);
       continue;
     }
     if (!(value.length === 0)) {
-      lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${v.url})`).join(", ")}`);
+      lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
     }
   }
   lines.push("", `### [View dependabot alerts](${url})`);
@@ -20368,6 +20369,7 @@ var DependabotPolicyEvaluator = class {
       const threshold = thresholds2[severity];
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
+          number: alert.number,
           url: alert.url,
           age: this.formatAge(ageDays)
         });

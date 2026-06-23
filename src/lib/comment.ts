@@ -5,6 +5,7 @@
  * upserts it on the pull request (idempotent: identified by COMMENT_MARKER).
  */
 
+import * as core from "@actions/core";
 import { HttpClient } from "@actions/http-client";
 import { githubHeaders, USER_AGENT, GITHUB_API_BASE } from "./github.js";
 import { PolicyResponse } from "./dependabotAlertsFetcher.js";
@@ -51,12 +52,13 @@ export function buildCommentBody(
   const violations = policy.findings;
   lines.push("", "### Violations:");
   for (const [key, value] of Object.entries(violations.violations)) {
+    core.info(`Processing violations for severity: ${key}, value: ${JSON.stringify(value)}`);
     if (!Array.isArray(value)) {
       lines.push(`- **${key}:** null`);
       continue;
     }
     if (!(value.length === 0)) {
-      lines.push(`- **${key}:** ${value.map(v => `[${v.number}](${v.url})`).join(", ")}`);
+      lines.push(`- **${key}:** ${value.map(v => `[${v.number}](${url}/${v.number})`).join(", ")}`);
     }
   }
 
