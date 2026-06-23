@@ -62,8 +62,10 @@ export function buildCommentBody(
     }
   }
 
+
   lines.push("", `### [View dependabot alerts](${url})`);
 
+  core.info(`Generated comment body:\n${lines.join("\n")}`);
   return lines.join("\n");
 }
 

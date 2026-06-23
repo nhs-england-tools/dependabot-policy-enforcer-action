@@ -20022,6 +20022,8 @@ function buildCommentBody(status, policy, mode, url) {
     }
   }
   lines.push("", `### [View dependabot alerts](${url})`);
+  info(`Generated comment body:
+${lines.join("\n")}`);
   return lines.join("\n");
 }
 async function withRetry(fn, retries = 1, delayMs = 2e3) {
