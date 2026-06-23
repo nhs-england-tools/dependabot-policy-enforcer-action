@@ -225,7 +225,7 @@ describe("buildCommentBody", () => {
     expect(body).not.toContain(`**low:**`);
   });
 
-  it("should render empty violations with empty", () => {
+  it("should render empty violations with 'None'", () => {
     const body = buildCommentBody(
       "passed",
       makePolicy({ findings: { violations: { critical: [], high: [], medium: [], low: [] } } }),
@@ -235,6 +235,7 @@ describe("buildCommentBody", () => {
     const violationsIdx = body.indexOf("### Violations:");
     const afterViolations = body.indexOf("### [View dependabot alerts]");
     const between = body.slice(violationsIdx, afterViolations);
+    expect(between).toContain("None");
     expect(between).not.toContain("- **critical:**");
     expect(between).not.toContain("- **high:**");
     expect(between).not.toContain("- **medium:**");
