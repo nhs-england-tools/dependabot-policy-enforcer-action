@@ -19980,6 +19980,7 @@ async function getDependabotAlerts(token, owner, repo) {
   return allAlerts.map((alert) => ({
     severity: alert.security_vulnerability.severity,
     url: alert.url,
+    number: alert.number,
     created_at: alert.created_at
   }));
 }
@@ -20015,7 +20016,9 @@ function buildCommentBody(status, policy, mode, url) {
       lines.push(`- **${key}:** null`);
       continue;
     }
-    lines.push(`- **${key}:** ${value.map((v) => v.url).join(", ")}`);
+    if (!(value.length === 0)) {
+      lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${v.url})`).join(", ")}`);
+    }
   }
   lines.push("", `### [View dependabot alerts](${url})`);
   return lines.join("\n");
