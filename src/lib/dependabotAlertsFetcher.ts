@@ -34,7 +34,8 @@ export interface DependabotAlert {
 }
 
 export interface AlertViolation {
-  opened_at: string;
+  url: string;
+  number: number;
   age: string;
 }
 
@@ -158,7 +159,8 @@ export class DependabotPolicyEvaluator {
       // Check if alert exceeds threshold
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
-          opened_at: alert.created_at,
+          number: alert.number,
+          url: alert.url,
           age: this.formatAge(ageDays),
         });
       }

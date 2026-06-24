@@ -123,7 +123,7 @@ The comment includes:
 - **Status** — ✅ Passed, ❌ Failed, or ⚠️ Exempted
 - **Mode** — the active mode for this run
 - **Summary** — severity counts from the policy check
-- **Violations** — number of findings per category
+- **Violations** — findings per category with link to alert. If nothing is shown, then no violating alerts were found.
 - **Link** — direct link to the repository's Dependabot alerts page
 
 The comment is idempotent: subsequent runs replace the previous action-managed comment rather than creating duplicates. Comment failures are logged as warnings and never mask the policy decision.

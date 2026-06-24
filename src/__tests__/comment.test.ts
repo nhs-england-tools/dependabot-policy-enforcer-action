@@ -200,30 +200,32 @@ describe("buildCommentBody", () => {
     expect(body).toContain("### Violations:");
   });
 
-  it("should render violations as count bullet list", () => {
+  it("should render violations with link", () => {
     const body = buildCommentBody(
       "failed",
       makePolicy({
         findings: {
           violations: {
             critical: [
-              { openedAt: "2024-06-01T00:00:00Z", age: "10 days" },
-              { openedAt: "2024-06-02T00:00:00Z", age: "9 days" },
+              { url: "url-1", age: "10 days", number: 1 },
+              { url: "url-2", age: "5 days", number: 2 }
             ],
             high: [],
-            medium: [{ openedAt: "2024-06-03T00:00:00Z", age: "8 days" }],
-            low: null,
+            medium: [{ url: "url-3", age: "8 days", number: 3 }],
+            low: [],
           },
         },
       }),
       "enforce",
       "https://example.com/report",
     );
-    expect(body).toContain("- **critical:** 2");
-    expect(body).toContain("- **medium:** 1");
+    expect(body).toContain(`**critical:** [1](https://example.com/report/1), [2](https://example.com/report/2)`);
+    expect(body).not.toContain(`**high:**`);
+    expect(body).toContain(`**medium:** [3](https://example.com/report/3)`);
+    expect(body).not.toContain(`**low:**`);
   });
 
-  it("should render empty violations with 0", () => {
+  it("should render empty violations with 'None'", () => {
     const body = buildCommentBody(
       "passed",
       makePolicy({ findings: { violations: { critical: [], high: [], medium: [], low: [] } } }),
@@ -233,10 +235,11 @@ describe("buildCommentBody", () => {
     const violationsIdx = body.indexOf("### Violations:");
     const afterViolations = body.indexOf("### [View dependabot alerts]");
     const between = body.slice(violationsIdx, afterViolations);
-    expect(between).toContain("- **critical:** 0");
-    expect(between).toContain("- **high:** 0");
-    expect(between).toContain("- **medium:** 0");
-    expect(between).toContain("- **low:** 0");
+    expect(between).toContain("None");
+    expect(between).not.toContain("- **critical:**");
+    expect(between).not.toContain("- **high:**");
+    expect(between).not.toContain("- **medium:**");
+    expect(between).not.toContain("- **low:**");
   });
 
   it("should render null violations when dependabot disabled", () => {
@@ -271,7 +274,7 @@ describe("postPrComment", () => {
     summary: { total: 0 },
     findings: {
       violations: {
-        critical: [{ openedAt: "2024-06-01T00:00:00Z", age: "10 days" }],
+        critical: [{ age: "10 days", url: "url-1", number: 1 }],
         high: [],
         medium: [],
         low: [],

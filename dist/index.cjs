@@ -19980,6 +19980,7 @@ async function getDependabotAlerts(token, owner, repo) {
   return allAlerts.map((alert) => ({
     severity: alert.security_vulnerability.severity,
     url: alert.url,
+    number: alert.number,
     created_at: alert.created_at
   }));
 }
@@ -20010,13 +20011,21 @@ function buildCommentBody(status, policy, mode, url) {
   }
   const violations = policy.findings;
   lines.push("", "### Violations:");
+  const violation_lines = [];
   for (const [key, value] of Object.entries(violations.violations)) {
+    info(`Processing violations for severity: ${key}, value: ${JSON.stringify(value)}`);
     if (!Array.isArray(value)) {
-      lines.push(`- **${key}:** null`);
+      violation_lines.push(`- **${key}:** null`);
       continue;
     }
-    lines.push(`- **${key}:** ${value.length}`);
+    if (!(value.length === 0)) {
+      violation_lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+    }
   }
+  if (violation_lines.length === 0) {
+    violation_lines.push("None");
+  }
+  lines.push(...violation_lines);
   lines.push("", `### [View dependabot alerts](${url})`);
   return lines.join("\n");
 }
@@ -20256,7 +20265,7 @@ async function getPageOfFiles(client, url, headers) {
 // src/lib/policyConfig.ts
 var thresholds = {
   critical: {
-    maxAgeDays: 10,
+    maxAgeDays: 5,
     description: "Critical alerts must be addressed within 10 days"
   },
   high: {
@@ -20365,7 +20374,8 @@ var DependabotPolicyEvaluator = class {
       const threshold = thresholds2[severity];
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
-          opened_at: alert.created_at,
+          number: alert.number,
+          url: alert.url,
           age: this.formatAge(ageDays)
         });
       }

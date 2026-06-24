@@ -68,6 +68,7 @@ describe("getDependabotAlerts", () => {
     expect(data).toEqual([
       {
         url: "url-1",
+        number: 1,
         severity: "high",
         created_at: "2024-01-01T00:00:00Z",
       },
