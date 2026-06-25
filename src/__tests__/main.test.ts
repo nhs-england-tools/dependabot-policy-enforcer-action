@@ -82,6 +82,8 @@ describe("Action Entry Point (run)", () => {
       url: "url-1",
       severity: "MODERATE",
       created_at: "2026-06-16T09:49:05Z",
+      number: 1,
+      fix_available: true,
     }]);
   });
 
@@ -118,6 +120,8 @@ describe("Action Entry Point (run)", () => {
       url: "url-1",
       severity: "CRITICAL",
       created_at: "2026-06-01T09:49:05Z",
+      number: 1,
+      fix_available: true,
     }]);
 
     await run();
@@ -132,6 +136,8 @@ describe("Action Entry Point (run)", () => {
       url: "url-1",
       severity: "CRITICAL",
       created_at: "2026-06-01T09:49:05Z",
+      number: 1,
+      fix_available: true,
     }]);
 
     mockGetInput.mockImplementation((name: string) => {
@@ -153,7 +159,7 @@ describe("Action Entry Point (run)", () => {
     expect(loggedOutput).toContain("Dependabot policy check passed in report mode, but 1 alert(s) exceed the defined thresholds");
   });
 
-    // ---------------------------------------------------------------
+  // ---------------------------------------------------------------
   // Input validation
   // ---------------------------------------------------------------
 
@@ -224,9 +230,9 @@ describe("Action Entry Point (run)", () => {
     expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining("403 Forbidden"));
   });
 
-//   // ---------------------------------------------------------------
-//   // Network / unexpected errors
-//   // ---------------------------------------------------------------
+  //   // ---------------------------------------------------------------
+  //   // Network / unexpected errors
+  //   // ---------------------------------------------------------------
 
   it("should handle non-Error throws gracefully", async () => {
     mockedgetDependabotAlerts.mockRejectedValue("string error");
@@ -281,6 +287,8 @@ describe("PR comment integration", () => {
       url: "url-1",
       severity: "CRITICAL",
       created_at: "2026-06-16T09:49:05Z",
+      number: 1,
+      fix_available: true,
     }]);
 
     mockPostPrComment.mockResolvedValue(undefined);
@@ -355,6 +363,8 @@ describe("PR comment integration", () => {
       url: "url-1",
       severity: "CRITICAL",
       created_at: "2026-06-01T09:49:05Z",
+      number: 1,
+      fix_available: true,
     }]);
 
     await run();
@@ -455,16 +465,20 @@ describe("Package file change detection in enforce mode", () => {
 
     // Policy response — pipelinePasses is false to trigger the guard
     mockedgetDependabotAlerts.mockResolvedValue([
-        {
-            url: "url-1",
-            severity: "CRITICAL",
-            created_at: "2026-06-01T09:49:05Z",
-        },
-        {
-            url: "url-2",
-            severity: "CRITICAL",
-            created_at: "2026-06-01T09:49:05Z",
-        }
+      {
+        url: "url-1",
+        severity: "CRITICAL",
+        created_at: "2026-06-01T09:49:05Z",
+        number: 1,
+        fix_available: true,
+      },
+      {
+        url: "url-2",
+        severity: "CRITICAL",
+        created_at: "2026-06-01T09:49:05Z",
+        number: 2,
+        fix_available: true,
+      }
     ]);
 
     mockPostPrComment.mockResolvedValue(undefined);
