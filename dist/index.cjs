@@ -19936,6 +19936,16 @@ function extractPrNumber(eventName, ref) {
   const m = /refs\/pull\/(\d+)\//.exec(ref);
   return m ? Number.parseInt(m[1], 10) : null;
 }
+function isFixAvailable(alert) {
+  if (alert.security_vulnerability?.first_patched_version != null) return true;
+  const pkg = alert.dependency?.package;
+  if (pkg && Array.isArray(alert.security_advisory?.vulnerabilities)) {
+    return alert.security_advisory.vulnerabilities.some(
+      (v) => v.package?.ecosystem === pkg.ecosystem && v.package?.name === pkg.name && v.first_patched_version != null
+    );
+  }
+  return false;
+}
 async function getDependabotAlerts(token, owner, repo) {
   const headers = githubHeaders(token);
   const allAlerts = [];
@@ -19964,7 +19974,11 @@ async function getDependabotAlerts(token, owner, repo) {
     if (data.length === 0) {
       break;
     }
-    allAlerts.push(...data);
+    const withdrawn = data.filter((alert) => alert.security_advisory?.withdrawn_at);
+    if (withdrawn.length > 0) {
+      info(`Skipping ${withdrawn.length} alert(s) with withdrawn security advisories: ${withdrawn.map((a) => `#${a.number}`).join(", ")}`);
+    }
+    allAlerts.push(...data.filter((alert) => !alert.security_advisory?.withdrawn_at));
     const linkHeader = res.headers.get("link");
     url = null;
     if (linkHeader) {
@@ -19981,7 +19995,8 @@ async function getDependabotAlerts(token, owner, repo) {
     severity: alert.security_vulnerability.severity,
     url: alert.url,
     number: alert.number,
-    created_at: alert.created_at
+    created_at: alert.created_at,
+    fix_available: isFixAvailable(alert)
   }));
 }
 function githubHeaders(token) {
@@ -20355,6 +20370,7 @@ var DependabotPolicyEvaluator = class {
       low: []
     };
     let oldestAgeDays = 0;
+    const ignoredAlertUrls = [];
     for (const alert of alerts) {
       const rawSeverity = alert.severity.toLowerCase();
       const ageDays = this.calculateAlertAgeDays(alert.created_at);
@@ -20372,6 +20388,10 @@ var DependabotPolicyEvaluator = class {
       }
       const severity = rawSeverity;
       const threshold = thresholds2[severity];
+      if (!alert.fix_available) {
+        ignoredAlertUrls.push(alert.url);
+        continue;
+      }
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
           number: alert.number,
@@ -20379,6 +20399,9 @@ var DependabotPolicyEvaluator = class {
           age: this.formatAge(ageDays)
         });
       }
+    }
+    if (ignoredAlertUrls.length > 0) {
+      console.info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
     }
     const violatingAlerts = violations.critical.length + violations.high.length + violations.medium.length + violations.low.length;
     return {
