@@ -207,7 +207,7 @@ export class DependabotPolicyEvaluator {
       totalOpenAlerts: alerts.length,
       blockingViolatingAlerts,
       informationalViolatingAlerts,
-      oldestAlert: this.formatAge(oldestAgeDays),
+      oldestAlert: (alerts.length > 0) ? this.formatAge(oldestAgeDays) : "N/A",
       blocking,
       informational,
     };

@@ -177,6 +177,19 @@ describe("DependabotPolicyEvaluator", () => {
       expect(result.informationalViolatingAlerts).toBe(1);
       expect(result.blocking.high).toHaveLength(1);
       expect(result.blocking.critical).toHaveLength(1);
+
+    it("can handle no alerts", () => {
+      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
+      const result = evaluator.evaluateAlerts(
+        [],
+        thresholds,
+        "critical",
+      );
+
+      expect(result.totalOpenAlerts).toBe(0);
+      expect(result.blockingViolatingAlerts).toBe(0);
+      expect(result.informationalViolatingAlerts).toHaveLength(0);
+      expect(result.oldestAlert).toBe("N/A");
     });
 
   });
@@ -226,7 +239,8 @@ describe("DependabotPolicyEvaluator", () => {
       expect(result.summary.blockingViolatingAlerts).toBeNull();
     });
 
-    it("shows 0 for totalOpenAlerts and blockingViolatingAlerts when there are no alerts", async () => {
+
+    it("displays correct data when there are no alerts", async () => {
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       mockgetDependabotAlerts.mockResolvedValueOnce([]);
 
@@ -235,6 +249,8 @@ describe("DependabotPolicyEvaluator", () => {
       expect(result.pipelinePasses).toBe(true);
       expect(result.summary.totalOpenAlerts).toBe(0);
       expect(result.summary.blockingViolatingAlerts).toBe(0);
+      expect(result.summary.oldestAlert).toBe("N/A");
+      expect(result.summary.informationalViolatingAlerts).toBe(1);
     });
 
     it("passes pipeline when only informational violations exist in enforce mode", async () => {
