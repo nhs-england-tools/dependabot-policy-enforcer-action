@@ -134,6 +134,20 @@ describe("DependabotPolicyEvaluator", () => {
       );
     });
 
+    it("can handle no alerts", () => {
+      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
+      const result = evaluator.evaluateAlerts(
+        [],
+        thresholds,
+      );
+
+      expect(result.totalOpenAlerts).toBe(0);
+      expect(result.violatingAlerts).toBe(0);
+      expect(result.violations.critical).toHaveLength(0);
+      expect(result.violations.high).toHaveLength(0);
+      expect(result.oldestAlert).toBe("N/A");
+    });
+
   });
 
   describe("evaluateDependabotResults", () => {
@@ -181,7 +195,7 @@ describe("DependabotPolicyEvaluator", () => {
       expect(result.summary.violatingAlerts).toBeNull();
     });
 
-    it("shows 0 for totalOpenAlerts and violatingAlerts when there are no alerts", async () => {
+    it("displays correct data when there are no alerts", async () => {
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       mockgetDependabotAlerts.mockResolvedValueOnce([]);
 
@@ -190,6 +204,7 @@ describe("DependabotPolicyEvaluator", () => {
       expect(result.pipelinePasses).toBe(true);
       expect(result.summary.totalOpenAlerts).toBe(0);
       expect(result.summary.violatingAlerts).toBe(0);
+      expect(result.summary.oldestAlert).toBe("N/A");
     });
   });
 });
