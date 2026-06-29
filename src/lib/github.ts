@@ -1,3 +1,6 @@
+import * as core from "@actions/core"
+import { DependabotAlert } from "./dependabotAlertsFetcher.js"
+
 /**
  * Common Github functions and helpers for the Dependabot Policy Enforcer action.
  */
@@ -11,9 +14,15 @@ export function extractPrNumber(eventName?: string, ref?: string): number | null
   return m ? Number.parseInt(m[1], 10) : null
 }
 
+export function isFixAvailable(alert: any): boolean {
+  if (alert.security_vulnerability?.first_patched_version != null) return true
+  return false
+}
+
+
 export async function getDependabotAlerts(token: string, owner: string, repo: string): Promise<any> {
   const headers = githubHeaders(token)
-  const allAlerts: any[] = []
+  const allAlerts: DependabotAlert[] = []
   const perPage = 100
   let url: string | null = `${GITHUB_API_BASE}/repos/${owner}/${repo}/dependabot/alerts?state=open&per_page=${perPage}`
 
@@ -45,7 +54,11 @@ export async function getDependabotAlerts(token: string, owner: string, repo: st
       break
     }
 
-    allAlerts.push(...data)
+    const withdrawn = data.filter((alert: any) => alert.security_advisory?.withdrawn_at)
+    if (withdrawn.length > 0) {
+      core.info(`Skipping ${withdrawn.length} alert(s) with withdrawn security advisories: ${withdrawn.map((a: any) => `#${a.number}`).join(', ')}`)
+    }
+    allAlerts.push(...data.filter((alert: any) => !alert.security_advisory?.withdrawn_at))
 
     // Parse Link header for next page
     const linkHeader: string | null = res.headers.get('link')
@@ -66,6 +79,7 @@ export async function getDependabotAlerts(token: string, owner: string, repo: st
     url: alert.url,
     number: alert.number,
     created_at: alert.created_at,
+    fix_available: isFixAvailable(alert)
   }))
 }
 

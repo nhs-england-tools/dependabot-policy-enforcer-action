@@ -12,7 +12,7 @@ const {
   mockPostPrComment,
   mockPostErrorPrComment,
   mockIsDependencyUpdate,
-  mockupsertPrComment
+  mockupsertPrComment,
 } = vi.hoisted(() => ({
   mockGetInput: vi.fn(),
   mockSetSecret: vi.fn(),
@@ -78,11 +78,15 @@ describe("Action Entry Point (run)", () => {
     });
 
     // Default successful response
-    mockedgetDependabotAlerts.mockResolvedValue([{
-      url: "url-1",
-      severity: "MODERATE",
-      created_at: "2026-06-16T09:49:05Z",
-    }]);
+    mockedgetDependabotAlerts.mockResolvedValue([
+      {
+        url: "url-1",
+        severity: "MODERATE",
+        created_at: "2026-06-16T09:49:05Z",
+        number: 1,
+        fix_available: true,
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -94,11 +98,12 @@ describe("Action Entry Point (run)", () => {
   // Successful request
   // ---------------------------------------------------------------
 
-
   it("should log success info", async () => {
     await run();
 
-    expect(mockInfo).toHaveBeenCalledWith(expect.stringContaining("Policy check passed"));
+    expect(mockInfo).toHaveBeenCalledWith(
+      expect.stringContaining("Policy check passed"),
+    );
   });
 
   it("should accept report mode", async () => {
@@ -114,11 +119,15 @@ describe("Action Entry Point (run)", () => {
   });
 
   it("should fail the action if there is violating alert", async () => {
-    mockedgetDependabotAlerts.mockResolvedValue([{
-      url: "url-1",
-      severity: "CRITICAL",
-      created_at: "2026-06-01T09:49:05Z",
-    }]);
+    mockedgetDependabotAlerts.mockResolvedValue([
+      {
+        url: "url-1",
+        severity: "CRITICAL",
+        created_at: "2026-06-01T09:49:05Z",
+        number: 1,
+        fix_available: true,
+      },
+    ]);
 
     await run();
 
@@ -128,11 +137,15 @@ describe("Action Entry Point (run)", () => {
   });
 
   it("should not fail the action if there is violating alert, but report mode", async () => {
-    mockedgetDependabotAlerts.mockResolvedValue([{
-      url: "url-1",
-      severity: "CRITICAL",
-      created_at: "2026-06-01T09:49:05Z",
-    }]);
+    mockedgetDependabotAlerts.mockResolvedValue([
+      {
+        url: "url-1",
+        severity: "CRITICAL",
+        created_at: "2026-06-01T09:49:05Z",
+        number: 1,
+        fix_available: true,
+      },
+    ]);
 
     mockGetInput.mockImplementation((name: string) => {
       if (name === "github-token") return "gha-token-abc";
@@ -150,10 +163,41 @@ describe("Action Entry Point (run)", () => {
       .map(([msg]) => String(msg))
       .join("\n");
     expect(loggedOutput).toContain("Policy check message:");
-    expect(loggedOutput).toContain("Dependabot policy check passed in report mode, but 1 alert(s) exceed the defined thresholds");
+    expect(loggedOutput).toContain(
+      "Dependabot policy check passed in report mode, but 1 alert(s) exceed the defined thresholds",
+    );
   });
 
-    // ---------------------------------------------------------------
+  it("should not count alerts with no fix available as violating", async () => {
+    mockedgetDependabotAlerts.mockResolvedValue([
+      {
+        url: "url-1",
+        severity: "LOW",
+        created_at: "2026-06-01T09:49:05Z",
+        number: 1,
+        fix_available: true,
+      },
+      {
+        url: "url-2",
+        severity: "CRITICAL",
+        created_at: "2026-06-01T09:49:05Z",
+        number: 2,
+        fix_available: false,
+      },
+    ]);
+
+    await run();
+
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    const loggedOutput = mockInfo.mock.calls
+      .map(([msg]) => String(msg))
+      .join("\n");
+    expect(loggedOutput).toContain(
+      "1 alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: url-2",
+    );
+  });
+
+  // ---------------------------------------------------------------
   // Input validation
   // ---------------------------------------------------------------
 
@@ -161,7 +205,6 @@ describe("Action Entry Point (run)", () => {
     await run();
     expect(mockSetSecret).toHaveBeenCalledWith("gha-token-abc");
   });
-
 
   it("should still call setFailed when github-token is absent", async () => {
     mockGetInput.mockImplementation((name: string) => {
@@ -180,7 +223,9 @@ describe("Action Entry Point (run)", () => {
     await run();
 
     expect(mockSetFailed).toHaveBeenCalledWith(
-      expect.stringContaining("github-token input is required. Please provide a GitHub token with appropriate permissions."),
+      expect.stringContaining(
+        "github-token input is required. Please provide a GitHub token with appropriate permissions.",
+      ),
     );
   });
 
@@ -210,7 +255,6 @@ describe("Action Entry Point (run)", () => {
     expect(mockedgetDependabotAlerts).not.toHaveBeenCalled();
   });
 
-
   // ---------------------------------------------------------------
   // Errors from mockedgetDependabotAlerts
   // ---------------------------------------------------------------
@@ -220,13 +264,17 @@ describe("Action Entry Point (run)", () => {
 
     await run();
 
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining("Unexpected error"));
-    expect(mockSetFailed).toHaveBeenCalledWith(expect.stringContaining("403 Forbidden"));
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining("Unexpected error"),
+    );
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining("403 Forbidden"),
+    );
   });
 
-//   // ---------------------------------------------------------------
-//   // Network / unexpected errors
-//   // ---------------------------------------------------------------
+  //   // ---------------------------------------------------------------
+  //   // Network / unexpected errors
+  //   // ---------------------------------------------------------------
 
   it("should handle non-Error throws gracefully", async () => {
     mockedgetDependabotAlerts.mockRejectedValue("string error");
@@ -277,11 +325,15 @@ describe("PR comment integration", () => {
       }
     });
 
-    mockedgetDependabotAlerts.mockResolvedValue([{
-      url: "url-1",
-      severity: "CRITICAL",
-      created_at: "2026-06-16T09:49:05Z",
-    }]);
+    mockedgetDependabotAlerts.mockResolvedValue([
+      {
+        url: "url-1",
+        severity: "CRITICAL",
+        created_at: "2026-06-16T09:49:05Z",
+        number: 1,
+        fix_available: true,
+      },
+    ]);
 
     mockPostPrComment.mockResolvedValue(undefined);
 
@@ -294,7 +346,6 @@ describe("PR comment integration", () => {
     process.env = originalEnv;
     vi.useRealTimers();
   });
-
 
   it("should call postPrComment with correct args on a PR", async () => {
     await run();
@@ -350,12 +401,15 @@ describe("PR comment integration", () => {
   });
 
   it("should call postPrComment and setFailed when pipelinePasses is false", async () => {
-
-    mockedgetDependabotAlerts.mockResolvedValue([{
-      url: "url-1",
-      severity: "CRITICAL",
-      created_at: "2026-06-01T09:49:05Z",
-    }]);
+    mockedgetDependabotAlerts.mockResolvedValue([
+      {
+        url: "url-1",
+        severity: "CRITICAL",
+        created_at: "2026-06-01T09:49:05Z",
+        number: 1,
+        fix_available: true,
+      },
+    ]);
 
     await run();
 
@@ -365,7 +419,9 @@ describe("PR comment integration", () => {
   });
 
   it("should pass info in comment when dependabot disabled", async () => {
-    mockedgetDependabotAlerts.mockRejectedValue(new Error("Dependabot alerts are disabled for this repository."));
+    mockedgetDependabotAlerts.mockRejectedValue(
+      new Error("Dependabot alerts are disabled for this repository."),
+    );
 
     await run();
 
@@ -393,10 +449,10 @@ describe("PR comment integration", () => {
           },
         },
         message: "Dependabot alerts are disabled for this repository.",
-        pipelinePasses: true
+        pipelinePasses: true,
       }),
       "passed",
-      "enforce"
+      "enforce",
     );
   });
 
@@ -455,16 +511,20 @@ describe("Package file change detection in enforce mode", () => {
 
     // Policy response — pipelinePasses is false to trigger the guard
     mockedgetDependabotAlerts.mockResolvedValue([
-        {
-            url: "url-1",
-            severity: "CRITICAL",
-            created_at: "2026-06-01T09:49:05Z",
-        },
-        {
-            url: "url-2",
-            severity: "CRITICAL",
-            created_at: "2026-06-01T09:49:05Z",
-        }
+      {
+        url: "url-1",
+        severity: "CRITICAL",
+        created_at: "2026-06-01T09:49:05Z",
+        number: 1,
+        fix_available: true,
+      },
+      {
+        url: "url-2",
+        severity: "CRITICAL",
+        created_at: "2026-06-01T09:49:05Z",
+        number: 2,
+        fix_available: true,
+      },
     ]);
 
     mockPostPrComment.mockResolvedValue(undefined);
