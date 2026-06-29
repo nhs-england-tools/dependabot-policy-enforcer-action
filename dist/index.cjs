@@ -19938,12 +19938,6 @@ function extractPrNumber(eventName, ref) {
 }
 function isFixAvailable(alert) {
   if (alert.security_vulnerability?.first_patched_version != null) return true;
-  const pkg = alert.dependency?.package;
-  if (pkg && Array.isArray(alert.security_advisory?.vulnerabilities)) {
-    return alert.security_advisory.vulnerabilities.some(
-      (v) => v.package?.ecosystem === pkg.ecosystem && v.package?.name === pkg.name && v.first_patched_version != null
-    );
-  }
   return false;
 }
 async function getDependabotAlerts(token, owner, repo) {
@@ -20401,7 +20395,7 @@ var DependabotPolicyEvaluator = class {
       }
     }
     if (ignoredAlertUrls.length > 0) {
-      console.info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
+      info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
     }
     const violatingAlerts = violations.critical.length + violations.high.length + violations.medium.length + violations.low.length;
     return {
