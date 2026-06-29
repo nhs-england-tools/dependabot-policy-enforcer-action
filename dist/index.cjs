@@ -20401,7 +20401,7 @@ var DependabotPolicyEvaluator = class {
     return {
       totalOpenAlerts: alerts.length,
       violatingAlerts,
-      oldestAlert: this.formatAge(oldestAgeDays),
+      oldestAlert: alerts.length > 0 ? this.formatAge(oldestAgeDays) : "N/A",
       violations
     };
   }
