@@ -15,6 +15,7 @@ import {
 import { extractPrNumber } from "./lib/github.js";
 import { isDependencyUpdate } from "./lib/filecheck.js";
 import { DependabotPolicyEvaluator } from "./lib/dependabotAlertsFetcher.js";
+import { type BlockingSeverity, SEVERITY_RANK } from "./lib/policyConfig.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",
@@ -30,6 +31,7 @@ export async function run(): Promise<void> {
   // ---------------------------------------------------------------
   const repo = process.env.GITHUB_REPOSITORY ?? "";
   const mode = (core.getInput("mode") || "enforce").trim().toLowerCase();
+  const blockingSeverity = (core.getInput("blocking-severity") || "critical").trim().toLowerCase() as BlockingSeverity;
   const githubToken = core.getInput("github-token");
   core.setSecret(githubToken);
 
@@ -57,10 +59,17 @@ export async function run(): Promise<void> {
       return;
     }
 
+    if (!(blockingSeverity in SEVERITY_RANK)) {
+      core.setFailed(
+        `blocking-severity must be one of "critical", "high", "medium", "low", got "${blockingSeverity}".`,
+      );
+      return;
+    }
+
     core.info(`Checking Dependabot policy for ${repo}…`);
 
     const evaluator = new DependabotPolicyEvaluator(githubToken, repo);
-    const result = await evaluator.evaluateDependabotResults(mode);
+    const result = await evaluator.evaluateDependabotResults(mode, blockingSeverity);
     const prNumber = extractPrNumber(
       process.env.GITHUB_EVENT_NAME,
       process.env.GITHUB_REF,

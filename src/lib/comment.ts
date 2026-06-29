@@ -8,7 +8,7 @@
 import * as core from "@actions/core";
 import { HttpClient } from "@actions/http-client";
 import { githubHeaders, USER_AGENT, GITHUB_API_BASE } from "./github.js";
-import { PolicyResponse } from "./dependabotAlertsFetcher.js";
+import { AlertViolation, PolicyResponse } from "./dependabotAlertsFetcher.js";
 
 /** HTML marker embedded in every comment body, used to find and update it. */
 export const COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
@@ -51,21 +51,30 @@ export function buildCommentBody(
 
   const violations = policy.findings;
   lines.push("", "### Violations:");
-  const violation_lines: string[] = [];
-  for (const [key, value] of Object.entries(violations.violations)) {
-    core.info(`Processing violations for severity: ${key}, value: ${JSON.stringify(value)}`);
-    if (!Array.isArray(value)) {
-      violation_lines.push(`- **${key}:** null`);
-      continue;
-    }
-    if (!(value.length === 0)) {
-      violation_lines.push(`- **${key}:** ${value.map(v => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+  const blocking_lines: string[] = [];
+  for (const [key, value] of Object.entries(violations.blocking)) {
+    if (value.length > 0) {
+      blocking_lines.push(`- **${key}:** ${value.map((v: AlertViolation) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
     }
   }
-  if (violation_lines.length === 0) {
-    violation_lines.push("None");
+  if (blocking_lines.length === 0) {
+    blocking_lines.push("None");
   }
-  lines.push(...violation_lines);
+  lines.push(...blocking_lines);
+
+  const informational_lines: string[] = [];
+  for (const [key, value] of Object.entries(violations.informational)) {
+    if (value.length > 0) {
+      informational_lines.push(`- **${key}:** ${value.map((v: AlertViolation) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+    }
+  }
+  if (informational_lines.length > 0) {
+    lines.push("", "### ⚠️ Informational violations (will not block):");
+    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced. \
+      They are reported here for visibility and should be addressed in a timely manner.");
+    lines.push(...informational_lines);
+  }
+
   lines.push("", `### [View dependabot alerts](${url})`);
 
   return lines.join("\n");

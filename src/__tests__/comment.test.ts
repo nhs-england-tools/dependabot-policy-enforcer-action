@@ -64,7 +64,13 @@ function makePolicy(overrides: Partial<PolicyResponse> = {}): PolicyResponse {
     repository: "org/repo",
     summary: {},
     findings: {
-      violations: {
+      blocking: {
+        critical: [],
+        high: [],
+        medium: [],
+        low: [],
+      },
+      informational: {
         critical: [],
         high: [],
         medium: [],
@@ -169,12 +175,12 @@ describe("buildCommentBody", () => {
   it("should render summary entries as bullet list", () => {
     const body = buildCommentBody(
       "failed",
-      makePolicy({ summary: { totalOpenAlerts: 3, violatingAlerts: 1 } }),
+      makePolicy({ summary: { totalOpenAlerts: 3, blockingViolatingAlerts: 1 } }),
       "enforce",
       "https://example.com/report",
     );
     expect(body).toContain("- **totalOpenAlerts:** 3");
-    expect(body).toContain("- **violatingAlerts:** 1");
+    expect(body).toContain("- **blockingViolatingAlerts:** 1");
   });
 
   it("should render empty summary with no bullet items", () => {
@@ -200,12 +206,12 @@ describe("buildCommentBody", () => {
     expect(body).toContain("### Violations:");
   });
 
-  it("should render violations with link", () => {
+  it("should render blocking violations with links", () => {
     const body = buildCommentBody(
       "failed",
       makePolicy({
         findings: {
-          violations: {
+          blocking: {
             critical: [
               { url: "url-1", age: "10 days", number: 1 },
               { url: "url-2", age: "5 days", number: 2 }
@@ -214,6 +220,7 @@ describe("buildCommentBody", () => {
             medium: [{ url: "url-3", age: "8 days", number: 3 }],
             low: [],
           },
+          informational: { critical: [], high: [], medium: [], low: [] },
         },
       }),
       "enforce",
@@ -225,10 +232,41 @@ describe("buildCommentBody", () => {
     expect(body).not.toContain(`**low:**`);
   });
 
+  it("should render informational violations in a separate section", () => {
+    const body = buildCommentBody(
+      "passed",
+      makePolicy({
+        findings: {
+          blocking: { critical: [], high: [], medium: [], low: [] },
+          informational: {
+            critical: [],
+            high: [{ url: "url-1", age: "21 days", number: 1 }],
+            medium: [],
+            low: [],
+          },
+        },
+      }),
+      "enforce",
+      "https://example.com/report",
+    );
+    expect(body).toContain("### ⚠️ Informational violations (will not block):");
+    expect(body).toContain(`**high:** [1](https://example.com/report/1)`);
+  });
+
+  it("should not render informational section when there are no informational violations", () => {
+    const body = buildCommentBody(
+      "passed",
+      makePolicy(),
+      "enforce",
+      "https://example.com/report",
+    );
+    expect(body).not.toContain("Informational violations");
+  });
+
   it("should render empty violations with 'None'", () => {
     const body = buildCommentBody(
       "passed",
-      makePolicy({ findings: { violations: { critical: [], high: [], medium: [], low: [] } } }),
+      makePolicy({ findings: { blocking: { critical: [], high: [], medium: [], low: [] }, informational: { critical: [], high: [], medium: [], low: [] } } }),
       "enforce",
       "https://example.com/report",
     );
@@ -242,24 +280,30 @@ describe("buildCommentBody", () => {
     expect(between).not.toContain("- **low:**");
   });
 
-  it("should render null violations when dependabot disabled", () => {
+  it("should render a 'passed' comment when Dependabot is disabled", () => {
     const body = buildCommentBody(
       "passed",
       makePolicy({
-        findings: {
-          violations: { critical: null, high: null, medium: null, low: null},
+        summary: {
+          totalOpenAlerts: null,
+          blockingViolatingAlerts: null,
+          informationalViolatingAlerts: null,
+          oldestAlert: null,
         },
+        message: "Dependabot alerts are disabled for this repository.",
       }),
       "enforce",
-      "https://example.com/report",
+      "https://github.com/org/repo/security/dependabot",
     );
-    const violationsIdx = body.indexOf("### Violations:");
-    const afterViolations = body.indexOf("### [View dependabot alerts]");
-    const between = body.slice(violationsIdx, afterViolations);
-    expect(between).toContain("- **critical:** null");
+    expect(body).toContain("✅ Passed");
+    expect(body).toContain("- **totalOpenAlerts:** null");
+    expect(body).toContain("- **blockingViolatingAlerts:** null");
+    expect(body).toContain("- **informationalViolatingAlerts:** null");
+    expect(body).toContain("- **oldestAlert:** null");
+    expect(body).toContain("None");
+    expect(body).not.toContain("Informational violations");
   });
 });
-
 // ---------------------------------------------------------------------------
 // postPrComment
 // ---------------------------------------------------------------------------
@@ -273,8 +317,14 @@ describe("postPrComment", () => {
     repository: "test-org/test-repo",
     summary: { total: 0 },
     findings: {
-      violations: {
+      blocking: {
         critical: [{ age: "10 days", url: "url-1", number: 1 }],
+        high: [],
+        medium: [],
+        low: [],
+      },
+      informational: {
+        critical: [],
         high: [],
         medium: [],
         low: [],

@@ -255,6 +255,22 @@ describe("Action Entry Point (run)", () => {
     expect(mockedgetDependabotAlerts).not.toHaveBeenCalled();
   });
 
+  it("should fail when blocking-severity is not a recognised value", async () => {
+    mockGetInput.mockImplementation((name: string) => {
+      if (name === "github-token") return "gha-token-abc";
+      if (name === "mode") return "enforce";
+      if (name === "blocking-severity") return "extreme";
+      return "";
+    });
+
+    await run();
+
+    expect(mockSetFailed).toHaveBeenCalledWith(
+      expect.stringContaining('blocking-severity must be one of'),
+    );
+    expect(mockedgetDependabotAlerts).not.toHaveBeenCalled();
+  });
+
   // ---------------------------------------------------------------
   // Errors from mockedgetDependabotAlerts
   // ---------------------------------------------------------------
@@ -437,15 +453,22 @@ describe("PR comment integration", () => {
         repository: "test-repo",
         summary: {
           totalOpenAlerts: null,
-          violatingAlerts: null,
+          blockingViolatingAlerts: null,
+          informationalViolatingAlerts: null,
           oldestAlert: null,
         },
         findings: {
-          violations: {
-            critical: null,
-            high: null,
-            medium: null,
-            low: null,
+          blocking: {
+            critical: [],
+            high: [],
+            medium: [],
+            low: [],
+          },
+          informational: {
+            critical: [],
+            high: [],
+            medium: [],
+            low: [],
           },
         },
         message: "Dependabot alerts are disabled for this repository.",

@@ -2,7 +2,7 @@ import { getDependabotAlerts } from "./github.js";
 import * as core from "@actions/core";
 
 import { type PolicyThresholds } from "./policyConfig.js";
-import thresholds from "./policyConfig.js";
+import thresholds, { type BlockingSeverity, isBlockingSeverity } from "./policyConfig.js";
 
 const RECOGNISED_SEVERITIES: ReadonlySet<string> = new Set([
   "critical",
@@ -11,18 +11,21 @@ const RECOGNISED_SEVERITIES: ReadonlySet<string> = new Set([
   "low",
 ]);
 
+export interface SeverityViolations {
+  critical: AlertViolation[];
+  high: AlertViolation[];
+  medium: AlertViolation[];
+  low: AlertViolation[];
+}
+
 export interface PolicyResponse {
   pipelinePasses: boolean;
   mode: string;
   repository: string;
   summary: Record<string, number | string | null>;
   findings: {
-    violations: {
-      critical: AlertViolation[] | null;
-      high: AlertViolation[] | null;
-      medium: AlertViolation[] | null;
-      low: AlertViolation[] | null;
-    };
+    blocking: SeverityViolations;
+    informational: SeverityViolations;
   };
   message?: string;
 }
@@ -44,14 +47,11 @@ export interface AlertViolation {
 
 export interface PolicyEvaluationResult {
   totalOpenAlerts: number;
-  violatingAlerts: number;
+  blockingViolatingAlerts: number;
+  informationalViolatingAlerts: number;
   oldestAlert: string;
-  violations: {
-    critical: AlertViolation[];
-    high: AlertViolation[];
-    medium: AlertViolation[];
-    low: AlertViolation[];
-  };
+  blocking: SeverityViolations;
+  informational: SeverityViolations;
 }
 
 export class DependabotPolicyEvaluator {
@@ -125,8 +125,15 @@ export class DependabotPolicyEvaluator {
   evaluateAlerts(
     alerts: DependabotAlert[],
     thresholds: PolicyThresholds,
+    blockingSeverity: BlockingSeverity,
   ): PolicyEvaluationResult {
-    const violations: PolicyEvaluationResult["violations"] = {
+    const blocking: SeverityViolations = {
+      critical: [],
+      high: [],
+      medium: [],
+      low: [],
+    };
+    const informational: SeverityViolations = {
       critical: [],
       high: [],
       medium: [],
@@ -165,13 +172,18 @@ export class DependabotPolicyEvaluator {
         continue;
       }
 
-      // Check if alert exceeds threshold
+      // Check if alert exceeds its severity threshold
       if (ageDays > threshold.maxAgeDays) {
-        violations[severity].push({
+        const violation = {
           number: alert.number,
           url: alert.url,
           age: this.formatAge(ageDays),
-        });
+        };
+        if (isBlockingSeverity(severity, blockingSeverity)) {
+          blocking[severity].push(violation);
+        } else {
+          informational[severity].push(violation);
+        }
       }
     }
 
@@ -179,21 +191,29 @@ export class DependabotPolicyEvaluator {
       core.info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
     }
 
-    const violatingAlerts =
-      violations.critical.length +
-      violations.high.length +
-      violations.medium.length +
-      violations.low.length;
+    const blockingViolatingAlerts =
+      blocking.critical.length +
+      blocking.high.length +
+      blocking.medium.length +
+      blocking.low.length;
+
+    const informationalViolatingAlerts =
+      informational.critical.length +
+      informational.high.length +
+      informational.medium.length +
+      informational.low.length;
 
     return {
       totalOpenAlerts: alerts.length,
-      violatingAlerts,
+      blockingViolatingAlerts,
+      informationalViolatingAlerts,
       oldestAlert: this.formatAge(oldestAgeDays),
-      violations,
+      blocking,
+      informational,
     };
   }
 
-  async evaluateDependabotResults(mode: string): Promise<PolicyResponse> {
+  async evaluateDependabotResults(mode: string, blockingSeverity: BlockingSeverity): Promise<PolicyResponse> {
     // Fetch open alerts and evaluate against policy thresholds
     let alerts: DependabotAlert[]
     try {
@@ -203,22 +223,25 @@ export class DependabotPolicyEvaluator {
       const message = error instanceof Error ? error.message : String(error);
       if (error instanceof Error && message.includes("Dependabot alerts are disabled for this repository.")) {
         core.info(`Dependabot alerts are disabled for this repository: ${this.repo}`);
+        const emptyViolations: SeverityViolations = {
+          critical: [],
+          high: [],
+          medium: [],
+          low: [],
+        };
         return {
           pipelinePasses: true,
           mode,
           repository: this.repo,
           summary: {
             totalOpenAlerts: null,
-            violatingAlerts: null,
+            blockingViolatingAlerts: null,
+            informationalViolatingAlerts: null,
             oldestAlert: null,
           },
           findings: {
-            violations: {
-              critical: null,
-              high: null,
-              medium: null,
-              low: null,
-            },
+            blocking: emptyViolations,
+            informational: { ...emptyViolations },
           },
           message: "Dependabot alerts are disabled for this repository.",
         };
@@ -230,29 +253,31 @@ export class DependabotPolicyEvaluator {
     }
     core.info(`Fetched Dependabot alerts, with total count: ${alerts.length}`);
 
-    const evaluation = this.evaluateAlerts(alerts, thresholds);
+    const evaluation = this.evaluateAlerts(alerts, thresholds, blockingSeverity);
 
     core.info("Dependabot policy evaluation result finished");
 
     const pipelinePasses =
-      mode === "report" || evaluation.violatingAlerts === 0;
+      mode === "report" || evaluation.blockingViolatingAlerts === 0;
     const result: PolicyResponse = {
       pipelinePasses,
       mode,
       repository: this.repo,
       summary: {
         totalOpenAlerts: evaluation.totalOpenAlerts,
-        violatingAlerts: evaluation.violatingAlerts,
+        blockingViolatingAlerts: evaluation.blockingViolatingAlerts,
+        informationalViolatingAlerts: evaluation.informationalViolatingAlerts,
         oldestAlert: evaluation.oldestAlert,
       },
       findings: {
-        violations: evaluation.violations,
+        blocking: evaluation.blocking,
+        informational: evaluation.informational,
       },
     };
 
-
-    if (pipelinePasses && evaluation.violatingAlerts > 0) {
-      result.message = `Dependabot policy check passed in report mode, but ${evaluation.violatingAlerts} alert(s) exceed the defined thresholds.`;
+    const totalViolatingAlerts = evaluation.blockingViolatingAlerts + evaluation.informationalViolatingAlerts;
+    if (pipelinePasses && totalViolatingAlerts > 0) {
+      result.message = `Dependabot policy check passed in report mode, but ${totalViolatingAlerts} alert(s) exceed the defined thresholds.`;
     }
     return result;
 }

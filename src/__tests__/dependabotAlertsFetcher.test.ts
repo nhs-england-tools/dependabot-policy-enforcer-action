@@ -4,7 +4,7 @@ import {
   DependabotPolicyEvaluator,
   type DependabotAlert,
 } from "../../src/lib/dependabotAlertsFetcher.js";
-import type { PolicyThresholds } from "../../src/lib/policyConfig.js";
+import type { PolicyThresholds, BlockingSeverity } from "../../src/lib/policyConfig.js";
 import { getDependabotAlerts } from "../../src/lib/github.js";
 
 vi.mock("../../src/lib/github.js", () => ({
@@ -75,20 +75,21 @@ describe("DependabotPolicyEvaluator", () => {
       const oldCritical = new Date(
         now.getTime() - 10 * 24 * 60 * 60 * 1000,
       ).toISOString();
-      const freshHigh = new Date(
+      const freshCritical = new Date(
         now.getTime() - 2 * 24 * 60 * 60 * 1000,
       ).toISOString();
 
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       const result = evaluator.evaluateAlerts(
-        [makeAlert("url-1", "critical", oldCritical, 1), makeAlert("url-2", "high", freshHigh, 2)],
+        [makeAlert("url-1", "critical", oldCritical, 1), makeAlert("url-2", "critical", freshCritical, 2)],
         thresholds,
+        "critical",
       );
 
       expect(result.totalOpenAlerts).toBe(2);
-      expect(result.violatingAlerts).toBe(1);
-      expect(result.violations.critical).toHaveLength(1);
-      expect(result.violations.high).toHaveLength(0);
+      expect(result.blockingViolatingAlerts).toBe(1);
+      expect(result.blocking.critical).toHaveLength(1);
+      expect(result.blocking.high).toHaveLength(0);
     });
 
     it("skips unrecognised severities", () => {
@@ -100,10 +101,11 @@ describe("DependabotPolicyEvaluator", () => {
       const result = evaluator.evaluateAlerts(
         [makeAlert("url-1", "unknown", old, 1), makeAlert("url-2", "critical", old, 2)],
         thresholds,
+        "critical",
       );
 
       expect(result.totalOpenAlerts).toBe(2);
-      expect(result.violatingAlerts).toBe(1);
+      expect(result.blockingViolatingAlerts).toBe(1);
       expect(warnSpy).toHaveBeenCalledWith(
         "Unrecognised alert severity — alert excluded from policy evaluation",
         expect.objectContaining({
@@ -122,16 +124,59 @@ describe("DependabotPolicyEvaluator", () => {
       const result = evaluator.evaluateAlerts(
         [makeAlert("url-1", "high", old, 1, true), makeAlert("url-2", "critical", old, 2, false)],
         thresholds,
+        "high",
       );
 
       expect(result.totalOpenAlerts).toBe(2);
-      expect(result.violatingAlerts).toBe(1);
-      expect(result.violations.critical).toHaveLength(0);
-      expect(result.violations.high).toHaveLength(1);
+      expect(result.blockingViolatingAlerts).toBe(1);
+      expect(result.blocking.critical).toHaveLength(0);
+      expect(result.blocking.high).toHaveLength(1);
 
       expect(core.info).toHaveBeenCalledWith(
         "1 alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: url-2"
       );
+    });
+
+    it("classifies violations below blocking-severity as informational", () => {
+      // critical is blocking, so high is informational
+      const now = new Date();
+      const oldHigh = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString();
+
+      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
+      const result = evaluator.evaluateAlerts(
+        [makeAlert("url-1", "high", oldHigh, 1)],
+        thresholds,
+        "critical",
+      );
+
+      expect(result.blockingViolatingAlerts).toBe(0);
+      expect(result.informationalViolatingAlerts).toBe(1);
+      expect(result.blocking.high).toHaveLength(0);
+      expect(result.informational.high).toHaveLength(1);
+    });
+
+    it("classifies violations at or above blocking-severity as blocking", () => {
+      // high is blocking, so critical and high are blocking, medium and low are informational
+      const now = new Date();
+      const oldHigh = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString();
+      const oldCritical = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString();
+      const oldMedium = new Date(now.getTime() - 50 * 24 * 60 * 60 * 1000).toISOString();
+
+      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
+      const result = evaluator.evaluateAlerts(
+        [
+          makeAlert("url-1", "high", oldHigh, 1),
+          makeAlert("url-2", "critical", oldCritical, 2),
+          makeAlert("url-3", "medium", oldMedium, 3),
+        ],
+        thresholds,
+        "high",
+      );
+
+      expect(result.blockingViolatingAlerts).toBe(2);
+      expect(result.informationalViolatingAlerts).toBe(1);
+      expect(result.blocking.high).toHaveLength(1);
+      expect(result.blocking.critical).toHaveLength(1);
     });
 
   });
@@ -148,10 +193,10 @@ describe("DependabotPolicyEvaluator", () => {
         makeAlert("url-1", "critical", oldCritical),
       ]);
 
-      const result = await evaluator.evaluateDependabotResults("report");
+      const result = await evaluator.evaluateDependabotResults("report", "critical");
 
       expect(result.pipelinePasses).toBe(true);
-      expect(result.summary.violatingAlerts).toBe(1);
+      expect(result.summary.blockingViolatingAlerts).toBe(1);
       expect(result.message).toContain("passed in report mode");
     });
 
@@ -163,10 +208,10 @@ describe("DependabotPolicyEvaluator", () => {
 
       mockgetDependabotAlerts.mockResolvedValueOnce([makeAlert("url-1", "critical", oldCritical)]);
 
-      const result = await evaluator.evaluateDependabotResults("enforce");
+      const result = await evaluator.evaluateDependabotResults("enforce", "critical");
 
       expect(result.pipelinePasses).toBe(false);
-      expect(result.summary.violatingAlerts).toBe(1);
+      expect(result.summary.blockingViolatingAlerts).toBe(1);
       expect(result.message).toBeUndefined();
     });
 
@@ -174,22 +219,37 @@ describe("DependabotPolicyEvaluator", () => {
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       mockgetDependabotAlerts.mockRejectedValueOnce(new Error("Dependabot alerts are disabled for this repository."));
 
-      const result = await evaluator.evaluateDependabotResults("enforce");
+      const result = await evaluator.evaluateDependabotResults("enforce", "critical");
 
       expect(result.pipelinePasses).toBe(true);
       expect(result.summary.totalOpenAlerts).toBeNull();
-      expect(result.summary.violatingAlerts).toBeNull();
+      expect(result.summary.blockingViolatingAlerts).toBeNull();
     });
 
-    it("shows 0 for totalOpenAlerts and violatingAlerts when there are no alerts", async () => {
+    it("shows 0 for totalOpenAlerts and blockingViolatingAlerts when there are no alerts", async () => {
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       mockgetDependabotAlerts.mockResolvedValueOnce([]);
 
-      const result = await evaluator.evaluateDependabotResults("enforce");
+      const result = await evaluator.evaluateDependabotResults("enforce", "critical");
 
       expect(result.pipelinePasses).toBe(true);
       expect(result.summary.totalOpenAlerts).toBe(0);
-      expect(result.summary.violatingAlerts).toBe(0);
+      expect(result.summary.blockingViolatingAlerts).toBe(0);
+    });
+
+    it("passes pipeline when only informational violations exist in enforce mode", async () => {
+      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
+      const oldHigh = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString();
+
+      mockgetDependabotAlerts.mockResolvedValueOnce([
+        makeAlert("url-1", "high", oldHigh),
+      ]);
+
+      const result = await evaluator.evaluateDependabotResults("enforce", "critical");
+
+      expect(result.pipelinePasses).toBe(true);
+      expect(result.summary.blockingViolatingAlerts).toBe(0);
+      expect(result.summary.informationalViolatingAlerts).toBe(1);
     });
   });
 });
