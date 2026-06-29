@@ -201,91 +201,20 @@ describe("isFixAvailable", () => {
     expect(isFixAvailable(alert)).toBe(true);
   });
 
-  it("should return false when security_vulnerability.first_patched_version is null and \
-    security_advisory.vulnerabilities is empty", () => {
+  it("should return false when security_vulnerability.first_patched_version is null", () => {
     const alert = {
       dependency: {
         package: { ecosystem: "npm", name: "lodash" },
       },
       security_vulnerability: {
         first_patched_version: null,
-      },
-      security_advisory: {
-        vulnerabilities: [],
-      },
+      }
     };
     expect(isFixAvailable(alert)).toBe(false);
   });
 
   it("should return false when security_vulnerability and security_advisory is absent", () => {
     const alert = {};
-    expect(isFixAvailable(alert)).toBe(false);
-  });
-
-  it("should return true if security_advisory.vulnerabilities has a patch for the same package/ecosystem", () => {
-    const alert = {
-      security_vulnerability: {
-        first_patched_version: null,
-      },
-      dependency: {
-        package: { ecosystem: "npm", name: "lodash" },
-      },
-      security_advisory: {
-        vulnerabilities: [
-          {
-            package: { ecosystem: "pip", name: "lodash" },
-            first_patched_version: { identifier: "4.18.0" },
-          },
-          {
-            package: { ecosystem: "npm", name: "lodash" },
-            first_patched_version: { identifier: "4.17.21" },
-          },
-        ],
-      },
-    };
-    expect(isFixAvailable(alert)).toBe(true);
-  });
-
-  it("should return false if security_advisory.vulnerabilities only has patches for different packages", () => {
-    const alert = {
-      security_vulnerability: {
-        first_patched_version: null,
-      },
-      dependency: {
-        package: { ecosystem: "npm", name: "lodash" },
-      },
-      security_advisory: {
-        vulnerabilities: [
-          {
-            package: { ecosystem: "pip", name: "lodash" },
-            first_patched_version: { identifier: "4.18.0" },
-          },
-          {
-            package: { ecosystem: "npm", name: "lodash" },
-            first_patched_version: null,
-          },
-        ],
-      },
-    };
-    expect(isFixAvailable(alert)).toBe(false);
-  });
-  it("should return false if security_advisory.vulnerabilities does not have patch for package", () => {
-    const alert = {
-      security_vulnerability: {
-        first_patched_version: null,
-      },
-      dependency: {
-        package: { ecosystem: "npm", name: "lodash" },
-      },
-      security_advisory: {
-        vulnerabilities: [
-          {
-            package: { ecosystem: "pip", name: "lodash" },
-            first_patched_version: { identifier: "4.18.0" },
-          }
-        ],
-      },
-    };
     expect(isFixAvailable(alert)).toBe(false);
   });
 });

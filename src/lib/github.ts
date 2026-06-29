@@ -16,16 +16,6 @@ export function extractPrNumber(eventName?: string, ref?: string): number | null
 
 export function isFixAvailable(alert: any): boolean {
   if (alert.security_vulnerability?.first_patched_version != null) return true
-  // Fall back to security_advisory.vulnerabilities for the same package/ecosystem
-  const pkg = alert.dependency?.package
-  if (pkg && Array.isArray(alert.security_advisory?.vulnerabilities)) {
-    return alert.security_advisory.vulnerabilities.some(
-      (v: any) =>
-        v.package?.ecosystem === pkg.ecosystem &&
-        v.package?.name === pkg.name &&
-        v.first_patched_version != null
-    )
-  }
   return false
 }
 

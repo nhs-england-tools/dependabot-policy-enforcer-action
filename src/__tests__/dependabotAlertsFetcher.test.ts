@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as core from "@actions/core";
 import {
   DependabotPolicyEvaluator,
   type DependabotAlert,
@@ -8,6 +9,11 @@ import { getDependabotAlerts } from "../../src/lib/github.js";
 
 vi.mock("../../src/lib/github.js", () => ({
   getDependabotAlerts: vi.fn(),
+}));
+
+vi.mock("@actions/core", () => ({
+  info: vi.fn(),
+  error: vi.fn(),
 }));
 
 const mockgetDependabotAlerts = vi.mocked(getDependabotAlerts);
@@ -109,8 +115,6 @@ describe("DependabotPolicyEvaluator", () => {
     });
 
     it("skips evaluating alerts that do not have a fix available", () => {
-      const infoSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
-
       const now = new Date();
       const old = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -125,11 +129,9 @@ describe("DependabotPolicyEvaluator", () => {
       expect(result.violations.critical).toHaveLength(0);
       expect(result.violations.high).toHaveLength(1);
 
-      expect(infoSpy).toHaveBeenCalledWith(
+      expect(core.info).toHaveBeenCalledWith(
         "1 alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: url-2"
       );
-
-      infoSpy.mockRestore();
     });
 
   });

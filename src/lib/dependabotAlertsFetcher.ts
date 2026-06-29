@@ -176,7 +176,7 @@ export class DependabotPolicyEvaluator {
     }
 
     if (ignoredAlertUrls.length > 0) {
-      console.info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(', ')}`);
+      core.info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
     }
 
     const violatingAlerts =
