@@ -197,6 +197,19 @@ describe("Action Entry Point (run)", () => {
     );
   });
 
+  it("should pass the pipeline when there are no alerts", async () => {
+    mockedgetDependabotAlerts.mockResolvedValue([]);
+
+    await run();
+
+    expect(mockSetFailed).not.toHaveBeenCalled();
+    const loggedOutput = mockInfo.mock.calls
+      .map(([msg]) => String(msg))
+      .join("\n");
+    expect(loggedOutput).toContain("Policy check passed");
+    expect(loggedOutput).toContain("Fetched Dependabot alerts, with total count: 0");
+  });
+
   // ---------------------------------------------------------------
   // Input validation
   // ---------------------------------------------------------------
