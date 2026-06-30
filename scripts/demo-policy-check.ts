@@ -151,6 +151,7 @@ async function main(): Promise<void> {
     policyResponse,
     mode,
     alertsUrl,
+    blockingSeverity,
   );
 
   console.log(

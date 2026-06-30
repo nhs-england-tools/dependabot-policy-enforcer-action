@@ -9,6 +9,7 @@ import * as core from "@actions/core";
 import { HttpClient } from "@actions/http-client";
 import { githubHeaders, USER_AGENT, GITHUB_API_BASE } from "./github.js";
 import { AlertViolation, PolicyResponse } from "./dependabotAlertsFetcher.js";
+import { type BlockingSeverity } from "./policyConfig.js";
 
 /** HTML marker embedded in every comment body, used to find and update it. */
 export const COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
@@ -25,6 +26,7 @@ export function buildCommentBody(
   policy: PolicyResponse,
   mode: string,
   url: string,
+  severity: BlockingSeverity,
 ): string {
   const statusLine =
     status === "passed"
@@ -42,7 +44,8 @@ export function buildCommentBody(
   ];
 
   const modeLine = `**Mode:** ${mode}`;
-  lines.push(modeLine);
+  const severityLine = `**Severity:** ${severity}`;
+  lines.push(modeLine, severityLine);
   const summary = policy.summary;
   lines.push("", "### Summary:");
   for (const [key, value] of Object.entries(summary)) {
@@ -230,11 +233,12 @@ export async function postPrComment(
   body: PolicyResponse,
   status: PolicyStatus,
   mode: string,
+  severity: BlockingSeverity,
 ): Promise<void> {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split("/");
     const url = `https://github.com/${owner}/${repoName}/security/dependabot`;
-    const commentBody = buildCommentBody(status, body, mode, url);
+    const commentBody = buildCommentBody(status, body, mode, url, severity);
     await upsertPrComment(
       { token: githubToken, owner, repo: repoName, prNumber },
       commentBody,

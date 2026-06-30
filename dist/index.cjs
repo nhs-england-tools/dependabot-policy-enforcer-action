@@ -20003,7 +20003,7 @@ function githubHeaders(token) {
 
 // src/lib/comment.ts
 var COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
-function buildCommentBody(status, policy, mode, url) {
+function buildCommentBody(status, policy, mode, url, severity) {
   const statusLine = status === "passed" ? "**Status:** \u2705 Passed" : status === "exempted" ? "**Status:** \u26A0\uFE0F Exempted \u2014 dependency update detected" : status === "error" ? "**Status:** \u274C Error \u2014 policy check could not complete" : "**Status:** \u274C Failed";
   const lines = [
     COMMENT_MARKER,
@@ -20012,7 +20012,8 @@ function buildCommentBody(status, policy, mode, url) {
     statusLine
   ];
   const modeLine = `**Mode:** ${mode}`;
-  lines.push(modeLine);
+  const severityLine = `**Severity:** ${severity}`;
+  lines.push(modeLine, severityLine);
   const summary2 = policy.summary;
   lines.push("", "### Summary:");
   for (const [key, value] of Object.entries(summary2)) {
@@ -20139,11 +20140,11 @@ async function upsertPrComment(opts, body) {
     await createPrComment(opts, body);
   });
 }
-async function postPrComment(githubToken, repo, prNumber, body, status, mode) {
+async function postPrComment(githubToken, repo, prNumber, body, status, mode, severity) {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split("/");
     const url = `https://github.com/${owner}/${repoName}/security/dependabot`;
-    const commentBody = buildCommentBody(status, body, mode, url);
+    const commentBody = buildCommentBody(status, body, mode, url, severity);
     await upsertPrComment(
       { token: githubToken, owner, repo: repoName, prNumber },
       commentBody
@@ -20431,11 +20432,11 @@ var DependabotPolicyEvaluator = class {
     if (ignoredAlertUrls.length > 0) {
       info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
     }
-    const blockingViolatingAlerts = blocking.critical.length + blocking.high.length + blocking.medium.length + blocking.low.length;
+    const violatingAlerts = blocking.critical.length + blocking.high.length + blocking.medium.length + blocking.low.length;
     const informationalAlerts = informational.critical.length + informational.high.length + informational.medium.length + informational.low.length;
     return {
       totalOpenAlerts: alerts.length,
-      blockingViolatingAlerts,
+      violatingAlerts,
       informationalAlerts,
       oldestAlert: alerts.length > 0 ? this.formatAge(oldestAgeDays) : "N/A",
       blocking,
@@ -20462,7 +20463,7 @@ var DependabotPolicyEvaluator = class {
           repository: this.repo,
           summary: {
             totalOpenAlerts: null,
-            blockingViolatingAlerts: null,
+            violatingAlerts: null,
             informationalAlerts: null,
             oldestAlert: null
           },
@@ -20480,14 +20481,14 @@ var DependabotPolicyEvaluator = class {
     info(`Fetched Dependabot alerts, with total count: ${alerts.length}`);
     const evaluation = this.evaluateAlerts(alerts, policyConfig_default, blockingSeverity);
     info("Dependabot policy evaluation result finished");
-    const pipelinePasses = mode === "report" || evaluation.blockingViolatingAlerts === 0;
+    const pipelinePasses = mode === "report" || evaluation.violatingAlerts === 0;
     const result = {
       pipelinePasses,
       mode,
       repository: this.repo,
       summary: {
         totalOpenAlerts: evaluation.totalOpenAlerts,
-        blockingViolatingAlerts: evaluation.blockingViolatingAlerts,
+        violatingAlerts: evaluation.violatingAlerts,
         informationalAlerts: evaluation.informationalAlerts,
         oldestAlert: evaluation.oldestAlert
       },
@@ -20496,7 +20497,7 @@ var DependabotPolicyEvaluator = class {
         informational: evaluation.informational
       }
     };
-    const totalViolatingAlerts = evaluation.blockingViolatingAlerts + evaluation.informationalAlerts;
+    const totalViolatingAlerts = evaluation.violatingAlerts + evaluation.informationalAlerts;
     if (pipelinePasses && totalViolatingAlerts > 0) {
       result.message = `Dependabot policy check passed in report mode, but ${totalViolatingAlerts} alert(s) exceed the defined thresholds.`;
     }
@@ -20543,7 +20544,8 @@ async function run() {
       );
       return;
     }
-    info(`Checking Dependabot policy for ${repo}\u2026`);
+    info(`This action will check ${repo} for open Dependabot Security alerts older than the allowed thresholds.       Any alerts at or above the blockingSeverity level and older than the allowed threshold will be treated as violations.`);
+    info(`Checking Dependabot policy for ${repo} in ${mode} mode with blocking severity: ${blockingSeverity}`);
     const evaluator = new DependabotPolicyEvaluator(githubToken, repo);
     const result = await evaluator.evaluateDependabotResults(mode, blockingSeverity);
     const prNumber = extractPrNumber(
@@ -20591,7 +20593,7 @@ ${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(result.summary, nul
       );
     }
     try {
-      await postPrComment(githubToken, repo, prNumber, result, status, mode);
+      await postPrComment(githubToken, repo, prNumber, result, status, mode, blockingSeverity);
     } catch (commentError) {
       const commentMsg = commentError instanceof Error ? commentError.message : String(commentError);
       warning(`Failed to post PR comment: ${commentMsg}`);

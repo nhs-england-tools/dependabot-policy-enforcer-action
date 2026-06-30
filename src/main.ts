@@ -66,7 +66,9 @@ export async function run(): Promise<void> {
       return;
     }
 
-    core.info(`Checking Dependabot policy for ${repo}…`);
+    core.info(`This action will check ${repo} for open Dependabot Security alerts older than the allowed thresholds. \
+      Any alerts at or above the blockingSeverity level and older than the allowed threshold will be treated as violations.`);
+    core.info(`Checking Dependabot policy for ${repo} in ${mode} mode with blocking severity: ${blockingSeverity}`);
 
     const evaluator = new DependabotPolicyEvaluator(githubToken, repo);
     const result = await evaluator.evaluateDependabotResults(mode, blockingSeverity);
@@ -134,7 +136,7 @@ export async function run(): Promise<void> {
 
     // Post a PR comment if the github-token is provided, regardless of pass/fail, but only for "pull_request" events
     try {
-      await postPrComment(githubToken, repo, prNumber, result, status, mode);
+      await postPrComment(githubToken, repo, prNumber, result, status, mode, blockingSeverity);
     } catch (commentError) {
       const commentMsg =
         commentError instanceof Error

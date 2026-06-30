@@ -47,7 +47,7 @@ export interface AlertViolation {
 
 export interface PolicyEvaluationResult {
   totalOpenAlerts: number;
-  blockingViolatingAlerts: number; // Alerts that exceed the defined thresholds and are at or above the severity level currently being enforced
+  violatingAlerts: number; // Alerts that exceed the defined thresholds and are at or above the severity level currently being enforced
   informationalAlerts: number; // Alerts that exceed the defined thresholds but are below the severity level currently being enforced
   oldestAlert: string;
   blocking: SeverityViolations;
@@ -191,7 +191,7 @@ export class DependabotPolicyEvaluator {
       core.info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
     }
 
-    const blockingViolatingAlerts =
+    const violatingAlerts =
       blocking.critical.length +
       blocking.high.length +
       blocking.medium.length +
@@ -205,7 +205,7 @@ export class DependabotPolicyEvaluator {
 
     return {
       totalOpenAlerts: alerts.length,
-      blockingViolatingAlerts,
+      violatingAlerts,
       informationalAlerts,
       oldestAlert: (alerts.length > 0) ? this.formatAge(oldestAgeDays) : "N/A",
       blocking,
@@ -235,7 +235,7 @@ export class DependabotPolicyEvaluator {
           repository: this.repo,
           summary: {
             totalOpenAlerts: null,
-            blockingViolatingAlerts: null,
+            violatingAlerts: null,
             informationalAlerts: null,
             oldestAlert: null,
           },
@@ -258,14 +258,14 @@ export class DependabotPolicyEvaluator {
     core.info("Dependabot policy evaluation result finished");
 
     const pipelinePasses =
-      mode === "report" || evaluation.blockingViolatingAlerts === 0;
+      mode === "report" || evaluation.violatingAlerts === 0;
     const result: PolicyResponse = {
       pipelinePasses,
       mode,
       repository: this.repo,
       summary: {
         totalOpenAlerts: evaluation.totalOpenAlerts,
-        blockingViolatingAlerts: evaluation.blockingViolatingAlerts,
+        violatingAlerts: evaluation.violatingAlerts,
         informationalAlerts: evaluation.informationalAlerts,
         oldestAlert: evaluation.oldestAlert,
       },
@@ -275,7 +275,7 @@ export class DependabotPolicyEvaluator {
       },
     };
 
-    const totalViolatingAlerts = evaluation.blockingViolatingAlerts + evaluation.informationalAlerts;
+    const totalViolatingAlerts = evaluation.violatingAlerts + evaluation.informationalAlerts;
     if (pipelinePasses && totalViolatingAlerts > 0) {
       result.message = `Dependabot policy check passed in report mode, but ${totalViolatingAlerts} alert(s) exceed the defined thresholds.`;
     }

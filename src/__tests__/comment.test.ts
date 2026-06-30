@@ -92,6 +92,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain(COMMENT_MARKER);
   });
@@ -102,6 +103,7 @@ describe("buildCommentBody", () => {
       makePolicy({ mode: "report" }),
       "report",
       "https://example.com/report",
+      "critical",
     );
     expect(body.startsWith(COMMENT_MARKER)).toBe(true);
   });
@@ -112,8 +114,24 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("## 🤖 Dependabot Policy Check");
+  });
+
+  it("should include severity line after mode", () => {
+    const body = buildCommentBody(
+      "passed",
+      makePolicy(),
+      "enforce",
+      "https://example.com/report",
+      "high",
+    );
+    expect(body).toContain("**Mode:** enforce");
+    expect(body).toContain("**Severity:** high");
+    expect(body.indexOf("**Mode:** enforce")).toBeLessThan(
+      body.indexOf("**Severity:** high"),
+    );
   });
 
   it("should show passed status with checkmark", () => {
@@ -122,6 +140,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("✅ Passed");
     expect(body).not.toContain("❌");
@@ -133,6 +152,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("❌ Failed");
     expect(body).not.toContain("✅");
@@ -144,6 +164,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("⚠️ Exempted — dependency update detected");
     expect(body).not.toContain("✅");
@@ -156,6 +177,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("❌ Error — policy check could not complete");
     expect(body).not.toContain("✅");
@@ -168,6 +190,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("### Summary:");
   });
@@ -175,12 +198,13 @@ describe("buildCommentBody", () => {
   it("should render summary entries as bullet list", () => {
     const body = buildCommentBody(
       "failed",
-      makePolicy({ summary: { totalOpenAlerts: 3, blockingViolatingAlerts: 1 } }),
+      makePolicy({ summary: { totalOpenAlerts: 3, violatingAlerts: 1 } }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("- **totalOpenAlerts:** 3");
-    expect(body).toContain("- **blockingViolatingAlerts:** 1");
+    expect(body).toContain("- **violatingAlerts:** 1");
   });
 
   it("should render empty summary with no bullet items", () => {
@@ -189,6 +213,7 @@ describe("buildCommentBody", () => {
       makePolicy({ summary: {} }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     const summaryIdx = body.indexOf("### Summary:");
     const violationsIdx = body.indexOf("### 🚨 Violations:");
@@ -202,6 +227,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("### 🚨 Violations:");
   });
@@ -225,6 +251,7 @@ describe("buildCommentBody", () => {
       }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain(`**critical:** [1](https://example.com/report/1), [2](https://example.com/report/2)`);
     expect(body).not.toContain(`**high:**`);
@@ -248,6 +275,7 @@ describe("buildCommentBody", () => {
       }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("### ⚠️ Alerts needing attention:");
     expect(body).toContain(`**high:** [1](https://example.com/report/1)`);
@@ -259,6 +287,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).not.toContain("### ⚠️ Alerts needing attention:");
   });
@@ -269,6 +298,7 @@ describe("buildCommentBody", () => {
       makePolicy({ findings: { blocking: { critical: [], high: [], medium: [], low: [] }, informational: { critical: [], high: [], medium: [], low: [] } } }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     const violationsIdx = body.indexOf("### 🚨 Violations:");
     const afterViolations = body.indexOf("### [View dependabot alerts]");
@@ -286,7 +316,7 @@ describe("buildCommentBody", () => {
       makePolicy({
         summary: {
           totalOpenAlerts: null,
-          blockingViolatingAlerts: null,
+          violatingAlerts: null,
           informationalAlerts: null,
           oldestAlert: null,
         },
@@ -294,10 +324,11 @@ describe("buildCommentBody", () => {
       }),
       "enforce",
       "https://github.com/org/repo/security/dependabot",
+      "critical",
     );
     expect(body).toContain("✅ Passed");
     expect(body).toContain("- **totalOpenAlerts:** null");
-    expect(body).toContain("- **blockingViolatingAlerts:** null");
+    expect(body).toContain("- **violatingAlerts:** null");
     expect(body).toContain("- **informationalAlerts:** null");
     expect(body).toContain("- **oldestAlert:** null");
     expect(body).toContain("None");
@@ -340,6 +371,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     expect(mockHttp.get).not.toHaveBeenCalled()
@@ -358,6 +390,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "high",
     );
 
     expect(mockHttp.get).toHaveBeenCalledOnce();
@@ -368,6 +401,7 @@ describe("postPrComment", () => {
     const [postUrl, postBody] = mockHttp.post.mock.calls[0] as [string, string];
     expect(postUrl).toContain("/repos/test-org/test-repo/issues/7/comments");
     expect(JSON.parse(postBody).body).toContain(COMMENT_MARKER);
+    expect(JSON.parse(postBody).body).toContain("**Severity:** high");
   });
 
   it('should delete and recreate an existing bot comment when the marker is found', async () => {
@@ -385,6 +419,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "failed",
       "enforce",
+      "critical",
     );
 
     expect(mockHttp.request).toHaveBeenCalledOnce()
@@ -405,6 +440,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     const [, postBody] = mockHttp.post.mock.calls[0] as [string, string];
@@ -422,6 +458,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "failed",
       "enforce",
+      "critical",
     );
 
     const [, postBody] = mockHttp.post.mock.calls[0] as [string, string];
@@ -439,6 +476,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "exempted",
       "enforce",
+      "critical",
     );
 
     const [, postBody] = mockHttp.post.mock.calls[0] as [string, string];
@@ -458,6 +496,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     const [_, headers] = mockHttp.get.mock.calls[0] as [
@@ -479,6 +518,7 @@ describe("postPrComment", () => {
         VALID_BODY,
         "passed",
         "enforce",
+        "critical",
       ),
     ).rejects.toThrow("HTTP 403");
   });
@@ -496,6 +536,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     expect(mockHttp.get).toHaveBeenCalledTimes(2);
@@ -515,6 +556,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     expect(mockHttp.get).toHaveBeenCalledTimes(2);
@@ -534,6 +576,7 @@ describe("postPrComment", () => {
         VALID_BODY,
         "passed",
         "enforce",
+        "critical",
       ),
     ).rejects.toThrow("HTTP 504");
   });
@@ -549,6 +592,7 @@ describe("postPrComment", () => {
         VALID_BODY,
         "passed",
         "enforce",
+        "critical",
       ),
     ).rejects.toThrow("HTTP 401");
 
@@ -566,6 +610,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     const [listUrl] = mockHttp.get.mock.calls[0] as [string];

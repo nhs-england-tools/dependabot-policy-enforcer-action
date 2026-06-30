@@ -100,7 +100,7 @@ describe("DependabotPolicyEvaluator", () => {
       );
 
       expect(result.totalOpenAlerts).toBe(2);
-      expect(result.blockingViolatingAlerts).toBe(1);
+      expect(result.violatingAlerts).toBe(1);
       expect(result.blocking.critical).toHaveLength(1);
       expect(result.blocking.high).toHaveLength(0);
     });
@@ -125,7 +125,7 @@ describe("DependabotPolicyEvaluator", () => {
       );
 
       expect(result.totalOpenAlerts).toBe(2);
-      expect(result.blockingViolatingAlerts).toBe(1);
+      expect(result.violatingAlerts).toBe(1);
       expect(warnSpy).toHaveBeenCalledWith(
         "Unrecognised alert severity — alert excluded from policy evaluation",
         expect.objectContaining({
@@ -153,7 +153,7 @@ describe("DependabotPolicyEvaluator", () => {
       );
 
       expect(result.totalOpenAlerts).toBe(2);
-      expect(result.blockingViolatingAlerts).toBe(1);
+      expect(result.violatingAlerts).toBe(1);
       expect(result.blocking.critical).toHaveLength(0);
       expect(result.blocking.high).toHaveLength(1);
 
@@ -176,7 +176,7 @@ describe("DependabotPolicyEvaluator", () => {
         "critical",
       );
 
-      expect(result.blockingViolatingAlerts).toBe(0);
+      expect(result.violatingAlerts).toBe(0);
       expect(result.informationalAlerts).toBe(1);
       expect(result.blocking.high).toHaveLength(0);
       expect(result.informational.high).toHaveLength(1);
@@ -206,7 +206,7 @@ describe("DependabotPolicyEvaluator", () => {
         "high",
       );
 
-      expect(result.blockingViolatingAlerts).toBe(2);
+      expect(result.violatingAlerts).toBe(2);
       expect(result.informationalAlerts).toBe(1);
       expect(result.blocking.high).toHaveLength(1);
       expect(result.blocking.critical).toHaveLength(1);
@@ -220,7 +220,7 @@ describe("DependabotPolicyEvaluator", () => {
       const result = evaluator.evaluateAlerts([], thresholds, "critical");
 
       expect(result.totalOpenAlerts).toBe(0);
-      expect(result.blockingViolatingAlerts).toBe(0);
+      expect(result.violatingAlerts).toBe(0);
       expect(result.informationalAlerts).toBe(0);
       expect(result.oldestAlert).toBe("N/A");
     });
@@ -243,7 +243,7 @@ describe("DependabotPolicyEvaluator", () => {
       );
 
       expect(result.pipelinePasses).toBe(true);
-      expect(result.summary.blockingViolatingAlerts).toBe(1);
+      expect(result.summary.violatingAlerts).toBe(1);
       expect(result.message).toContain("passed in report mode");
     });
 
@@ -263,7 +263,7 @@ describe("DependabotPolicyEvaluator", () => {
       );
 
       expect(result.pipelinePasses).toBe(false);
-      expect(result.summary.blockingViolatingAlerts).toBe(1);
+      expect(result.summary.violatingAlerts).toBe(1);
       expect(result.message).toBeUndefined();
     });
 
@@ -280,7 +280,7 @@ describe("DependabotPolicyEvaluator", () => {
 
       expect(result.pipelinePasses).toBe(true);
       expect(result.summary.totalOpenAlerts).toBeNull();
-      expect(result.summary.blockingViolatingAlerts).toBeNull();
+      expect(result.summary.violatingAlerts).toBeNull();
     });
 
     it("displays correct data when there are no alerts", async () => {
@@ -294,7 +294,7 @@ describe("DependabotPolicyEvaluator", () => {
 
       expect(result.pipelinePasses).toBe(true);
       expect(result.summary.totalOpenAlerts).toBe(0);
-      expect(result.summary.blockingViolatingAlerts).toBe(0);
+      expect(result.summary.violatingAlerts).toBe(0);
       expect(result.summary.oldestAlert).toBe("N/A");
       expect(result.summary.informationalAlerts).toBe(0);
     });
@@ -315,7 +315,7 @@ describe("DependabotPolicyEvaluator", () => {
       );
 
       expect(result.pipelinePasses).toBe(true);
-      expect(result.summary.blockingViolatingAlerts).toBe(0);
+      expect(result.summary.violatingAlerts).toBe(0);
       expect(result.summary.informationalAlerts).toBe(1);
     });
   });

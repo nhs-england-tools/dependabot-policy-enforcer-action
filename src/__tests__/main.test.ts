@@ -466,7 +466,7 @@ describe("PR comment integration", () => {
         repository: "test-repo",
         summary: {
           totalOpenAlerts: null,
-          blockingViolatingAlerts: null,
+          violatingAlerts: null,
           informationalAlerts: null,
           oldestAlert: null,
         },
@@ -489,6 +489,7 @@ describe("PR comment integration", () => {
       }),
       "passed",
       "enforce",
+      "critical",
     );
   });
 
