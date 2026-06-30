@@ -76,7 +76,7 @@ export function buildCommentBody(
   if (informational_lines.length > 0) {
     lines.push("", "### ⚠️ Alerts needing attention:");
     lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced. \
-      They are reported here for visibility and should be addressed in a timely manner.");
+      They are reported here for information and we recommend they are addressed in a timely manner.");
     lines.push(...informational_lines);
   }
 

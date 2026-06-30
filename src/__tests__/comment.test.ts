@@ -287,7 +287,7 @@ describe("buildCommentBody", () => {
         summary: {
           totalOpenAlerts: null,
           blockingViolatingAlerts: null,
-          informationalViolatingAlerts: null,
+          informationalAlerts: null,
           oldestAlert: null,
         },
         message: "Dependabot alerts are disabled for this repository.",
@@ -298,7 +298,7 @@ describe("buildCommentBody", () => {
     expect(body).toContain("✅ Passed");
     expect(body).toContain("- **totalOpenAlerts:** null");
     expect(body).toContain("- **blockingViolatingAlerts:** null");
-    expect(body).toContain("- **informationalViolatingAlerts:** null");
+    expect(body).toContain("- **informationalAlerts:** null");
     expect(body).toContain("- **oldestAlert:** null");
     expect(body).toContain("None");
     expect(body).not.toContain("Informational violations");

@@ -20042,7 +20042,7 @@ function buildCommentBody(status, policy, mode, url) {
   }
   if (informational_lines.length > 0) {
     lines.push("", "### \u26A0\uFE0F Alerts needing attention:");
-    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced.       They are reported here for visibility and should be addressed in a timely manner.");
+    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced.       They are reported here for information and we recommend they are addressed in a timely manner.");
     lines.push(...informational_lines);
   }
   lines.push("", `### [View dependabot alerts](${url})`);
@@ -20432,11 +20432,11 @@ var DependabotPolicyEvaluator = class {
       info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
     }
     const blockingViolatingAlerts = blocking.critical.length + blocking.high.length + blocking.medium.length + blocking.low.length;
-    const informationalViolatingAlerts = informational.critical.length + informational.high.length + informational.medium.length + informational.low.length;
+    const informationalAlerts = informational.critical.length + informational.high.length + informational.medium.length + informational.low.length;
     return {
       totalOpenAlerts: alerts.length,
       blockingViolatingAlerts,
-      informationalViolatingAlerts,
+      informationalAlerts,
       oldestAlert: alerts.length > 0 ? this.formatAge(oldestAgeDays) : "N/A",
       blocking,
       informational
@@ -20463,7 +20463,7 @@ var DependabotPolicyEvaluator = class {
           summary: {
             totalOpenAlerts: null,
             blockingViolatingAlerts: null,
-            informationalViolatingAlerts: null,
+            informationalAlerts: null,
             oldestAlert: null
           },
           findings: {
@@ -20488,7 +20488,7 @@ var DependabotPolicyEvaluator = class {
       summary: {
         totalOpenAlerts: evaluation.totalOpenAlerts,
         blockingViolatingAlerts: evaluation.blockingViolatingAlerts,
-        informationalViolatingAlerts: evaluation.informationalViolatingAlerts,
+        informationalAlerts: evaluation.informationalAlerts,
         oldestAlert: evaluation.oldestAlert
       },
       findings: {
@@ -20496,7 +20496,7 @@ var DependabotPolicyEvaluator = class {
         informational: evaluation.informational
       }
     };
-    const totalViolatingAlerts = evaluation.blockingViolatingAlerts + evaluation.informationalViolatingAlerts;
+    const totalViolatingAlerts = evaluation.blockingViolatingAlerts + evaluation.informationalAlerts;
     if (pipelinePasses && totalViolatingAlerts > 0) {
       result.message = `Dependabot policy check passed in report mode, but ${totalViolatingAlerts} alert(s) exceed the defined thresholds.`;
     }

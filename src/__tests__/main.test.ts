@@ -467,7 +467,7 @@ describe("PR comment integration", () => {
         summary: {
           totalOpenAlerts: null,
           blockingViolatingAlerts: null,
-          informationalViolatingAlerts: null,
+          informationalAlerts: null,
           oldestAlert: null,
         },
         findings: {
