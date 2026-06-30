@@ -191,19 +191,19 @@ describe("buildCommentBody", () => {
       "https://example.com/report",
     );
     const summaryIdx = body.indexOf("### Summary:");
-    const violationsIdx = body.indexOf("### Violations:");
+    const violationsIdx = body.indexOf("### 🚨 Violations:");
     const between = body.slice(summaryIdx, violationsIdx);
     expect(between).not.toContain("- **");
   });
 
-  it("should include ### Violations: section", () => {
+  it("should include ### 🚨 Violations: section", () => {
     const body = buildCommentBody(
       "passed",
       makePolicy(),
       "enforce",
       "https://example.com/report",
     );
-    expect(body).toContain("### Violations:");
+    expect(body).toContain("### 🚨 Violations:");
   });
 
   it("should render blocking violations with links", () => {
@@ -232,7 +232,7 @@ describe("buildCommentBody", () => {
     expect(body).not.toContain(`**low:**`);
   });
 
-  it("should render informational violations in a separate section", () => {
+  it("should renderAlerts needing attention in a separate section", () => {
     const body = buildCommentBody(
       "passed",
       makePolicy({
@@ -249,18 +249,18 @@ describe("buildCommentBody", () => {
       "enforce",
       "https://example.com/report",
     );
-    expect(body).toContain("### ⚠️ Informational violations (will not block):");
+    expect(body).toContain("### ⚠️ Alerts needing attention:");
     expect(body).toContain(`**high:** [1](https://example.com/report/1)`);
   });
 
-  it("should not render informational section when there are no informational violations", () => {
+  it("should not render informational section when there are noAlerts needing attention", () => {
     const body = buildCommentBody(
       "passed",
       makePolicy(),
       "enforce",
       "https://example.com/report",
     );
-    expect(body).not.toContain("Informational violations");
+    expect(body).not.toContain("### ⚠️ Alerts needing attention:");
   });
 
   it("should render empty violations with 'None'", () => {
@@ -270,7 +270,7 @@ describe("buildCommentBody", () => {
       "enforce",
       "https://example.com/report",
     );
-    const violationsIdx = body.indexOf("### Violations:");
+    const violationsIdx = body.indexOf("### 🚨 Violations:");
     const afterViolations = body.indexOf("### [View dependabot alerts]");
     const between = body.slice(violationsIdx, afterViolations);
     expect(between).toContain("None");

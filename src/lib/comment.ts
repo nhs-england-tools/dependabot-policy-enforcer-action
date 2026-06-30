@@ -50,13 +50,18 @@ export function buildCommentBody(
   }
 
   const violations = policy.findings;
-  lines.push("", "### Violations:");
+  lines.push("", "### 🚨 Violations:");
+  lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently being enforced.");
+  if (mode === "enforce") {
+    lines.push("", "The pipeline will fail until these alerts are remediated");
+  }
   const blocking_lines: string[] = [];
   for (const [key, value] of Object.entries(violations.blocking)) {
     if (value.length > 0) {
       blocking_lines.push(`- **${key}:** ${value.map((v: AlertViolation) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
     }
   }
+
   if (blocking_lines.length === 0) {
     blocking_lines.push("None");
   }
@@ -69,7 +74,7 @@ export function buildCommentBody(
     }
   }
   if (informational_lines.length > 0) {
-    lines.push("", "### ⚠️ Informational violations (will not block):");
+    lines.push("", "### ⚠️ Alerts needing attention:");
     lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced. \
       They are reported here for visibility and should be addressed in a timely manner.");
     lines.push(...informational_lines);
@@ -77,7 +82,9 @@ export function buildCommentBody(
 
   lines.push("", `### [View dependabot alerts](${url})`);
 
-  return lines.join("\n");
+  const result = lines.join("\n");
+  core.info(result);
+  return result;
 }
 
 // ---------------------------------------------------------------------------
