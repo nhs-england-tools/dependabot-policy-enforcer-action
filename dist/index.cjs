@@ -20004,6 +20004,7 @@ function githubHeaders(token) {
 // src/lib/comment.ts
 var COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
 var DISABLED_ALERTS_MESSAGE = "Dependabot alerts are disabled for this repository.";
+var MAX_INFORMATIONAL_ALERT_LINKS = 20;
 function buildStatusLine(status) {
   switch (status) {
     case "passed":
@@ -20038,7 +20039,7 @@ function buildCommentBody(status, policy, mode, url, severity) {
     if (policy.message === DISABLED_ALERTS_MESSAGE) {
       lines.push("", policy.message);
     } else {
-      lines.push("", "\u{1F389}No violations found");
+      lines.push("", "### \u{1F389}No violations found");
     }
   } else {
     lines.push("", "### \u{1F6A8} Violations:");
@@ -20060,7 +20061,11 @@ function buildCommentBody(status, policy, mode, url, severity) {
   const informational_lines = [];
   for (const [key, value] of Object.entries(violations.informational)) {
     if (value.length > 0) {
-      informational_lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      if (value.length > MAX_INFORMATIONAL_ALERT_LINKS) {
+        informational_lines.push(`- **${key}:** [ ${value.length} alerts found](${url})`);
+      } else {
+        informational_lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      }
     }
   }
   if (informational_lines.length > 0) {

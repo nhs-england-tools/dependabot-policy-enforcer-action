@@ -222,7 +222,7 @@ describe("buildCommentBody", () => {
       "critical",
     );
     const summaryIdx = body.indexOf("### Summary:");
-    const noViolationsIdx = body.indexOf("🎉No violations found");
+    const noViolationsIdx = body.indexOf("### 🎉No violations found");
     const between = body.slice(summaryIdx, noViolationsIdx);
     expect(between).not.toContain("- **");
   });
@@ -289,6 +289,36 @@ describe("buildCommentBody", () => {
     expect(body).toContain(`**high:** [1](https://example.com/report/1)`);
   });
 
+  it("should collapse informational alerts to general link when more than 20 exist", () => {
+    const manyHighInformational = Array.from({ length: 35 }, (_, idx) => ({
+      url: `url-${idx + 1}`,
+      age: "21 days",
+      number: idx + 1,
+    }));
+
+    const body = buildCommentBody(
+      "passed",
+      makePolicy({
+        findings: {
+          blocking: { critical: [], high: [], medium: [], low: [] },
+          informational: {
+            critical: [],
+            high: manyHighInformational,
+            medium: [],
+            low: [],
+          },
+        },
+      }),
+      "enforce",
+      "https://example.com/report",
+      "critical",
+    );
+
+    expect(body).toContain("### ⚠️ Alerts needing attention:");
+    expect(body).toContain("**high:** [ 35 alerts found](https://example.com/report)");
+    expect(body).not.toContain("https://example.com/report/1");
+  });
+
   it("should not render informational section when there are noAlerts needing attention", () => {
     const body = buildCommentBody(
       "passed",
@@ -352,7 +382,7 @@ describe("buildCommentBody", () => {
       "critical",
     );
 
-    expect(body).toContain("🎉No violations found");
+    expect(body).toContain("### 🎉No violations found");
     expect(body).not.toContain("### 🚨 Violations:");
     expect(body).not.toContain("None");
     expect(body).toContain("### ⚠️ Alerts needing attention:");
@@ -380,7 +410,7 @@ describe("buildCommentBody", () => {
     expect(body).toContain("- **informationalAlerts:** null");
     expect(body).toContain("- **oldestAlert:** null");
     expect(body).toContain("Dependabot alerts are disabled for this repository.");
-    expect(body).not.toContain("🎉No violations found");
+    expect(body).not.toContain("### 🎉No violations found");
     expect(body).not.toContain("### 🚨 Violations:");
     expect(body).not.toContain("Informational violations");
   });

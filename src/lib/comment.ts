@@ -8,7 +8,7 @@
 import * as core from "@actions/core";
 import { HttpClient } from "@actions/http-client";
 import { githubHeaders, USER_AGENT, GITHUB_API_BASE } from "./github.js";
-import { AlertViolation, PolicyResponse } from "./dependabotAlertsFetcher.js";
+import { AlertViolation, PolicyResponse, SeverityViolations } from "./dependabotAlertsFetcher.js";
 import { type BlockingSeverity } from "./policyConfig.js";
 
 /** HTML marker embedded in every comment body, used to find and update it. */
@@ -21,6 +21,7 @@ export const COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
 
 export type PolicyStatus = "passed" | "failed" | "exempted" | "error";
 const DISABLED_ALERTS_MESSAGE = "Dependabot alerts are disabled for this repository.";
+const MAX_INFORMATIONAL_ALERT_LINKS = 20;
 
 function buildStatusLine(status: PolicyStatus): string {
   switch (status) {
@@ -32,6 +33,7 @@ function buildStatusLine(status: PolicyStatus): string {
       return "**Status:** ❌ Failed";
   }
 }
+
 
 export function buildCommentBody(
   status: PolicyStatus,
@@ -66,7 +68,7 @@ export function buildCommentBody(
     if (policy.message === DISABLED_ALERTS_MESSAGE) {
       lines.push("", policy.message);
     } else {
-      lines.push("", "🎉No violations found");
+      lines.push("", "### 🎉No violations found");
     }
   } else {
     lines.push("", "### 🚨 Violations:");
@@ -90,7 +92,11 @@ export function buildCommentBody(
   const informational_lines: string[] = [];
   for (const [key, value] of Object.entries(violations.informational)) {
     if (value.length > 0) {
-      informational_lines.push(`- **${key}:** ${value.map((v: AlertViolation) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      if (value.length > MAX_INFORMATIONAL_ALERT_LINKS) {
+        informational_lines.push(`- **${key}:** [ ${value.length} alerts found](${url})`);
+      } else {
+        informational_lines.push(`- **${key}:** ${value.map((v: AlertViolation) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      }
     }
   }
   if (informational_lines.length > 0) {
