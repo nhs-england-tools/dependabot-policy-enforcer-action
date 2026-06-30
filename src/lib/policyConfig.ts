@@ -26,7 +26,7 @@ const thresholds = {
 
 export default thresholds;
 
-export type BlockingSeverity = "critical" | "high" | "medium" | "low"; // to do rename to severity
+export type BlockingSeverity = "critical" | "high" | "medium" | "low";
 
 export const SEVERITY_RANK: Record<BlockingSeverity, number> = {
   critical: 4,
