@@ -28,8 +28,6 @@ function buildStatusLine(status: PolicyStatus): string {
       return "**Status:** ✅ Passed";
     case "exempted":
       return "**Status:** ⚠️ Exempted — dependency update detected";
-    case "error":
-      return "**Status:** ❌ Error — policy check could not complete";
     default:
       return "**Status:** ❌ Failed";
   }

@@ -190,19 +190,6 @@ describe("buildCommentBody", () => {
     expect(body).not.toContain("❌");
   });
 
-  it("should show error status with error message", () => {
-    const body = buildCommentBody(
-      "error",
-      makePolicy(),
-      "enforce",
-      "https://example.com/report",
-      "critical",
-    );
-    expect(body).toContain("❌ Error — policy check could not complete");
-    expect(body).not.toContain("✅");
-    expect(body).not.toContain("⚠️");
-  });
-
   it("should include ### Summary: section", () => {
     const body = buildCommentBody(
       "passed",

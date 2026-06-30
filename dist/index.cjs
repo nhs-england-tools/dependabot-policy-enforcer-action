@@ -20010,8 +20010,6 @@ function buildStatusLine(status) {
       return "**Status:** \u2705 Passed";
     case "exempted":
       return "**Status:** \u26A0\uFE0F Exempted \u2014 dependency update detected";
-    case "error":
-      return "**Status:** \u274C Error \u2014 policy check could not complete";
     default:
       return "**Status:** \u274C Failed";
   }
