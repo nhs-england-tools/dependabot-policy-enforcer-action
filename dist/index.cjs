@@ -20003,8 +20003,21 @@ function githubHeaders(token) {
 
 // src/lib/comment.ts
 var COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
+var DISABLED_ALERTS_MESSAGE = "Dependabot alerts are disabled for this repository.";
+function buildStatusLine(status) {
+  switch (status) {
+    case "passed":
+      return "**Status:** \u2705 Passed";
+    case "exempted":
+      return "**Status:** \u26A0\uFE0F Exempted \u2014 dependency update detected";
+    case "error":
+      return "**Status:** \u274C Error \u2014 policy check could not complete";
+    default:
+      return "**Status:** \u274C Failed";
+  }
+}
 function buildCommentBody(status, policy, mode, url, severity) {
-  const statusLine = status === "passed" ? "**Status:** \u2705 Passed" : status === "exempted" ? "**Status:** \u26A0\uFE0F Exempted \u2014 dependency update detected" : status === "error" ? "**Status:** \u274C Error \u2014 policy check could not complete" : "**Status:** \u274C Failed";
+  const statusLine = buildStatusLine(status);
   const lines = [
     COMMENT_MARKER,
     "## \u{1F916} Dependabot Policy Check",
@@ -20020,21 +20033,32 @@ function buildCommentBody(status, policy, mode, url, severity) {
     lines.push(`- **${key}:** ${value}`);
   }
   const violations = policy.findings;
-  lines.push("", "### \u{1F6A8} Violations:");
-  lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently being enforced.");
-  if (mode === "enforce") {
-    lines.push("", "The pipeline will fail until these alerts are remediated");
-  }
-  const blocking_lines = [];
-  for (const [key, value] of Object.entries(violations.blocking)) {
-    if (value.length > 0) {
-      blocking_lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+  const hasBlockingViolations = Object.values(violations.blocking).some(
+    (entries) => entries.length > 0
+  );
+  if (status === "passed" && !hasBlockingViolations) {
+    if (policy.message === DISABLED_ALERTS_MESSAGE) {
+      lines.push("", policy.message);
+    } else {
+      lines.push("", "\u{1F389}No violations found");
     }
+  } else {
+    lines.push("", "### \u{1F6A8} Violations:");
+    lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently being enforced.");
+    if (mode === "enforce") {
+      lines.push("", "The pipeline will fail until these alerts are remediated");
+    }
+    const blocking_lines = [];
+    for (const [key, value] of Object.entries(violations.blocking)) {
+      if (value.length > 0) {
+        blocking_lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      }
+    }
+    if (blocking_lines.length === 0) {
+      blocking_lines.push("None");
+    }
+    lines.push(...blocking_lines);
   }
-  if (blocking_lines.length === 0) {
-    blocking_lines.push("None");
-  }
-  lines.push(...blocking_lines);
   const informational_lines = [];
   for (const [key, value] of Object.entries(violations.informational)) {
     if (value.length > 0) {
@@ -20043,7 +20067,7 @@ function buildCommentBody(status, policy, mode, url, severity) {
   }
   if (informational_lines.length > 0) {
     lines.push("", "### \u26A0\uFE0F Alerts needing attention:");
-    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced.       They are reported here for information and we recommend they are addressed in a timely manner.");
+    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced.     They are reported here for information and we recommend they are addressed in a timely manner.");
     lines.push(...informational_lines);
   }
   lines.push("", `### [View dependabot alerts](${url})`);
@@ -20544,8 +20568,10 @@ async function run() {
       );
       return;
     }
-    info(`This action will check ${repo} for open Dependabot Security alerts older than the allowed thresholds.       Any alerts at or above the blockingSeverity level and older than the allowed threshold will be treated as violations.`);
-    info(`Checking Dependabot policy for ${repo} in ${mode} mode with blocking severity: ${blockingSeverity}`);
+    info(`${LOG_STYLE.bold}${LOG_STYLE.green}This action will check ${repo} for open Dependabot Security alerts older than the allowed thresholds.`);
+    info(`Any alerts at or above the blockingSeverity level AND older than the allowed threshold will be treated as violations.${LOG_STYLE.reset}
+`);
+    info(`Checking Dependabot policy for ${repo} in ${mode} mode with blockingSeverity: ${blockingSeverity}`);
     const evaluator = new DependabotPolicyEvaluator(githubToken, repo);
     const result = await evaluator.evaluateDependabotResults(mode, blockingSeverity);
     const prNumber = extractPrNumber(

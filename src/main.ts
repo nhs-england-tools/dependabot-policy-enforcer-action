@@ -66,9 +66,9 @@ export async function run(): Promise<void> {
       return;
     }
 
-    core.info(`This action will check ${repo} for open Dependabot Security alerts older than the allowed thresholds. \
-      Any alerts at or above the blockingSeverity level and older than the allowed threshold will be treated as violations.`);
-    core.info(`Checking Dependabot policy for ${repo} in ${mode} mode with blocking severity: ${blockingSeverity}`);
+    core.info(`${LOG_STYLE.bold}${LOG_STYLE.green}This action will check ${repo} for open Dependabot Security alerts older than the allowed thresholds.`);
+    core.info(`Any alerts at or above the blockingSeverity level AND older than the allowed threshold will be treated as violations.${LOG_STYLE.reset}\n`);
+    core.info(`Checking Dependabot policy for ${repo} in ${mode} mode with blockingSeverity: ${blockingSeverity}`);
 
     const evaluator = new DependabotPolicyEvaluator(githubToken, repo);
     const result = await evaluator.evaluateDependabotResults(mode, blockingSeverity);
