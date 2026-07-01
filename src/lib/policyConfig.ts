@@ -26,9 +26,9 @@ const thresholds = {
 
 export default thresholds;
 
-export type BlockingSeverity = "critical" | "high" | "medium" | "low";
+export type Severity = "critical" | "high" | "medium" | "low";
 
-export const SEVERITY_RANK: Record<BlockingSeverity, number> = {
+export const SEVERITY_RANK: Record<Severity, number> = {
   critical: 4,
   high: 3,
   medium: 2,
@@ -36,10 +36,10 @@ export const SEVERITY_RANK: Record<BlockingSeverity, number> = {
 };
 
 export function isBlockingSeverity(
-  severity: string,
-  blockingSeverity: BlockingSeverity,
+  severity: Severity,
+  blockingSeverity: Severity,
 ): boolean {
-  const rank = SEVERITY_RANK[severity as BlockingSeverity];
+  const rank = SEVERITY_RANK[severity as Severity];
   if (rank === undefined) return false;
   return rank >= SEVERITY_RANK[blockingSeverity];
 }

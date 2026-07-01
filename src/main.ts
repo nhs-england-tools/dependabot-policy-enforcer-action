@@ -15,7 +15,7 @@ import {
 import { extractPrNumber } from "./lib/github.js";
 import { isDependencyUpdate } from "./lib/filecheck.js";
 import { DependabotPolicyEvaluator } from "./lib/dependabotAlertsFetcher.js";
-import { type BlockingSeverity, SEVERITY_RANK } from "./lib/policyConfig.js";
+import { type Severity, SEVERITY_RANK } from "./lib/policyConfig.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",
@@ -31,7 +31,7 @@ export async function run(): Promise<void> {
   // ---------------------------------------------------------------
   const repo = process.env.GITHUB_REPOSITORY ?? "";
   const mode = (core.getInput("mode") || "enforce").trim().toLowerCase();
-  const blockingSeverity = (core.getInput("blocking-severity") || "critical").trim().toLowerCase() as BlockingSeverity;
+  const blockingSeverity = (core.getInput("blocking-severity") || "critical").trim().toLowerCase() as Severity;
   const githubToken = core.getInput("github-token");
   core.setSecret(githubToken);
 

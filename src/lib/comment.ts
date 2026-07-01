@@ -9,7 +9,7 @@ import * as core from "@actions/core";
 import { HttpClient } from "@actions/http-client";
 import { githubHeaders, USER_AGENT, GITHUB_API_BASE } from "./github.js";
 import { AlertViolation, PolicyResponse, SeverityViolations } from "./dependabotAlertsFetcher.js";
-import { type BlockingSeverity } from "./policyConfig.js";
+import { type Severity } from "./policyConfig.js";
 
 /** HTML marker embedded in every comment body, used to find and update it. */
 export const COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
@@ -40,7 +40,7 @@ export function buildCommentBody(
   policy: PolicyResponse,
   mode: string,
   url: string,
-  severity: BlockingSeverity,
+  severity: Severity,
 ): string {
   const statusLine = buildStatusLine(status);
   const lines: string[] = [
@@ -257,7 +257,7 @@ export async function postPrComment(
   body: PolicyResponse,
   status: PolicyStatus,
   mode: string,
-  severity: BlockingSeverity,
+  severity: Severity,
 ): Promise<void> {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split("/");

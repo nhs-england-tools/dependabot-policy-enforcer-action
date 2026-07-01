@@ -3,7 +3,7 @@
  * Demo script that simulates a Dependabot policy check with fake alerts.
  *
  * Usage:
- *   yarn tsx scripts/demo-policy-check.ts [--mode enforce|report] [--blocking-severity critical|high|medium|low]
+ *   yarn tsx scripts/demo-policy-check.ts [--mode enforce|report] [--blocking-severity critical|high|medium|low] [--failure]
  * e.g yarn tsx scripts/demo-policy-check.ts --mode enforce --blocking-severity high
  *
  * This patches the GitHub API call so no real token is needed, then runs
@@ -20,7 +20,7 @@ import {
   buildCommentBody,
   type PolicyStatus,
 } from "../src/lib/comment.js";
-import { type BlockingSeverity, SEVERITY_RANK } from "../src/lib/policyConfig.js";
+import { type Severity, SEVERITY_RANK } from "../src/lib/policyConfig.js";
 
 // ---------------------------------------------------------------
 // Fake alerts — ages chosen to exceed the default thresholds so
@@ -64,16 +64,20 @@ const LOG_STYLE = {
 // Parse CLI flags
 // ---------------------------------------------------------------
 
-function parseArgs(): { mode: string; blockingSeverity: BlockingSeverity } {
-  const args = process.argv.slice(2);
+function parseArgs(): { mode: string; blockingSeverity: Severity, dependabotDisabled: boolean } {
+  const args = process.argv.slice(3);
   let mode = "enforce";
-  let blockingSeverity: BlockingSeverity = "critical";
+  let blockingSeverity: Severity = "critical";
+  let dependabotDisabled = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--mode" && args[i + 1]) {
       mode = args[++i];
     } else if (args[i] === "--blocking-severity" && args[i + 1]) {
-      blockingSeverity = args[++i] as BlockingSeverity;
+      blockingSeverity = args[++i] as Severity;
+    }
+    else if (args[i] === "--dependabotDisabled") {
+      dependabotDisabled = true;
     }
   }
 
@@ -85,7 +89,7 @@ function parseArgs(): { mode: string; blockingSeverity: BlockingSeverity } {
     console.error(`blocking-severity must be one of "critical", "high", "medium", "low", got "${blockingSeverity}"`);
     process.exit(1);
   }
-  return { mode, blockingSeverity };
+  return { mode, blockingSeverity, dependabotDisabled};
 }
 
 // ---------------------------------------------------------------
@@ -93,7 +97,7 @@ function parseArgs(): { mode: string; blockingSeverity: BlockingSeverity } {
 // ---------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const { mode, blockingSeverity } = parseArgs();
+  const { mode, blockingSeverity, dependabotDisabled} = parseArgs();
   const repo = "demo-org/demo-repo";
 
   console.log(
@@ -103,6 +107,7 @@ async function main(): Promise<void> {
   console.log(`  mode:               ${mode}`);
   console.log(`  blocking-severity:  ${blockingSeverity}`);
   console.log(`  fake alerts:        ${FAKE_ALERTS.length}`);
+  console.log(`  simulate Dependabot not enbaled failure:   ${dependabotDisabled}`);
   console.log();
 
   // Subclass that overrides fetchOpenAlerts to return fake data,
@@ -110,6 +115,9 @@ async function main(): Promise<void> {
   // without hitting the real GitHub API.
   class DemoEvaluator extends DependabotPolicyEvaluator {
     override async fetchOpenAlerts(): Promise<DependabotAlert[]> {
+      if (dependabotDisabled) {
+        throw new Error("Dependabot alerts are disabled for this repository.");
+      }
       return FAKE_ALERTS;
     }
   }

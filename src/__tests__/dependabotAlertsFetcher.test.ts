@@ -5,8 +5,7 @@ import {
   type DependabotAlert,
 } from "../../src/lib/dependabotAlertsFetcher.js";
 import type {
-  PolicyThresholds,
-  BlockingSeverity,
+  PolicyThresholds
 } from "../../src/lib/policyConfig.js";
 import { getDependabotAlerts } from "../../src/lib/github.js";
 

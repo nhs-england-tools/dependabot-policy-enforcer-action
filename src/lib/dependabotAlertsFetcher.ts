@@ -2,7 +2,7 @@ import { getDependabotAlerts } from "./github.js";
 import * as core from "@actions/core";
 
 import { type PolicyThresholds } from "./policyConfig.js";
-import thresholds, { type BlockingSeverity, isBlockingSeverity } from "./policyConfig.js";
+import thresholds, { type Severity, isBlockingSeverity } from "./policyConfig.js";
 
 const RECOGNISED_SEVERITIES: ReadonlySet<string> = new Set([
   "critical",
@@ -125,7 +125,7 @@ export class DependabotPolicyEvaluator {
   evaluateAlerts(
     alerts: DependabotAlert[],
     thresholds: PolicyThresholds,
-    blockingSeverity: BlockingSeverity,
+    blockingSeverity: Severity,
   ): PolicyEvaluationResult {
     const blocking: SeverityViolations = {
       critical: [],
@@ -213,7 +213,7 @@ export class DependabotPolicyEvaluator {
     };
   }
 
-  async evaluateDependabotResults(mode: string, blockingSeverity: BlockingSeverity): Promise<PolicyResponse> {
+  async evaluateDependabotResults(mode: string, blockingSeverity: Severity): Promise<PolicyResponse> {
     // Fetch open alerts and evaluate against policy thresholds
     let alerts: DependabotAlert[]
     try {
