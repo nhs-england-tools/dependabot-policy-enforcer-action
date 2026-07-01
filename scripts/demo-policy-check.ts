@@ -8,7 +8,7 @@
  *
  * This patches the GitHub API call so no real token is needed, then runs
  * the evaluator with synthetic alerts that produce both blocking AND
- *Alerts needing attention. It prints the same console output `main.ts`
+ * alerts needing attention. It prints the same console output `main.ts`
  * would produce and renders the PR comment markdown to stdout.
  */
 
@@ -35,13 +35,13 @@ const FAKE_ALERTS: DependabotAlert[] = [
   // Critical — threshold 5 days
   { url: "https://github.com/demo-org/demo-repo/security/dependabot/1",  severity: "critical", created_at: daysAgo(10), number: 1,  fix_available: true  },
   { url: "https://github.com/demo-org/demo-repo/security/dependabot/2",  severity: "critical", created_at: daysAgo(3),  number: 2,  fix_available: true  }, // within threshold
-  // High — threshold 20 days
-  { url: "https://github.com/demo-org/demo-repo/security/dependabot/3",  severity: "high",     created_at: daysAgo(25), number: 3,  fix_available: true  },
-  { url: "https://github.com/demo-org/demo-repo/security/dependabot/4",  severity: "high",     created_at: daysAgo(30), number: 4,  fix_available: true  },
-  // Medium — threshold 40 days
-  { url: "https://github.com/demo-org/demo-repo/security/dependabot/5",  severity: "medium",   created_at: daysAgo(50), number: 5,  fix_available: true  },
-  // Low — threshold 100 days
-  { url: "https://github.com/demo-org/demo-repo/security/dependabot/6",  severity: "low",      created_at: daysAgo(120),number: 6,  fix_available: true  },
+  // High — threshold 15 days
+  { url: "https://github.com/demo-org/demo-repo/security/dependabot/3",  severity: "high",     created_at: daysAgo(18), number: 3,  fix_available: true  },
+  { url: "https://github.com/demo-org/demo-repo/security/dependabot/4",  severity: "high",     created_at: daysAgo(22), number: 4,  fix_available: true  },
+  // Medium — threshold 30 days
+  { url: "https://github.com/demo-org/demo-repo/security/dependabot/5",  severity: "medium",   created_at: daysAgo(35), number: 5,  fix_available: true  },
+  // Low — threshold 40 days
+  { url: "https://github.com/demo-org/demo-repo/security/dependabot/6",  severity: "low",      created_at: daysAgo(45), number: 6,  fix_available: true  },
   // No fix available — should be ignored from evaluation
   { url: "https://github.com/demo-org/demo-repo/security/dependabot/7",  severity: "critical", created_at: daysAgo(15), number: 7,  fix_available: false },
 ];
@@ -65,7 +65,7 @@ const LOG_STYLE = {
 // ---------------------------------------------------------------
 
 function parseArgs(): { mode: string; blockingSeverity: Severity, dependabotDisabled: boolean } {
-  const args = process.argv.slice(3);
+  const args = process.argv.slice(2);
   let mode = "enforce";
   let blockingSeverity: Severity = "critical";
   let dependabotDisabled = false;
@@ -107,7 +107,7 @@ async function main(): Promise<void> {
   console.log(`  mode:               ${mode}`);
   console.log(`  blocking-severity:  ${blockingSeverity}`);
   console.log(`  fake alerts:        ${FAKE_ALERTS.length}`);
-  console.log(`  simulate Dependabot not enbaled failure:   ${dependabotDisabled}`);
+  console.log(`  simulate Dependabot disabled failure: ${dependabotDisabled}`);
   console.log();
 
   // Subclass that overrides fetchOpenAlerts to return fake data,

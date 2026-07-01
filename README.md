@@ -125,6 +125,7 @@ The comment includes:
 
 - **Status** — ✅ Passed, ❌ Failed, or ⚠️ Exempted
 - **Mode** — the active mode for this run
+- **Severity** — the `blocking-severity` used for this run.
 - **Summary** — severity counts from the policy check
 - **Violations** — findings per category with link to alert. If nothing is shown, then no violating alerts were found.
 - **Alerts needing attention** - Details alerts that were found to be older than the current age thresholds but have a severity below the configured `blocking-severity`
