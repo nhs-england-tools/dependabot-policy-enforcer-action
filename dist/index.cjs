@@ -20318,16 +20318,16 @@ var thresholds = {
     description: "Critical alerts must be addressed within 5 days"
   },
   high: {
-    maxAgeDays: 20,
-    description: "High alerts must be addressed within 20 days"
+    maxAgeDays: 15,
+    description: "High alerts must be addressed within 15 days"
   },
   medium: {
-    maxAgeDays: 40,
-    description: "Medium alerts must be addressed within 40 days"
+    maxAgeDays: 30,
+    description: "Medium alerts must be addressed within 30 days"
   },
   low: {
-    maxAgeDays: 100,
-    description: "Low alerts must be addressed within 100 days"
+    maxAgeDays: 40,
+    description: "Low alerts must be addressed within 40 days"
   }
 };
 var policyConfig_default = thresholds;
