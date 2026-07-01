@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as core from "@actions/core";
 import {
   DependabotPolicyEvaluator,
   type DependabotAlert,
@@ -10,17 +11,26 @@ vi.mock("../../src/lib/github.js", () => ({
   getDependabotAlerts: vi.fn(),
 }));
 
+vi.mock("@actions/core", () => ({
+  info: vi.fn(),
+  error: vi.fn(),
+}));
+
 const mockgetDependabotAlerts = vi.mocked(getDependabotAlerts);
 
 function makeAlert(
   url: string,
   severity: string,
   createdAt: string,
+  number: number = 1,
+  fixAvailable: boolean = true
 ): DependabotAlert {
   return {
     url,
     severity,
     created_at: createdAt,
+    number: number,
+    fix_available: fixAvailable,
   };
 }
 
@@ -71,7 +81,7 @@ describe("DependabotPolicyEvaluator", () => {
 
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       const result = evaluator.evaluateAlerts(
-        [makeAlert("url-1", "critical", oldCritical), makeAlert("url-2", "high", freshHigh)],
+        [makeAlert("url-1", "critical", oldCritical, 1), makeAlert("url-2", "high", freshHigh, 2)],
         thresholds,
       );
 
@@ -88,7 +98,7 @@ describe("DependabotPolicyEvaluator", () => {
 
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       const result = evaluator.evaluateAlerts(
-        [makeAlert("url-1", "unknown", old), makeAlert("url-2", "critical", old)],
+        [makeAlert("url-1", "unknown", old, 1), makeAlert("url-2", "critical", old, 2)],
         thresholds,
       );
 
@@ -103,6 +113,41 @@ describe("DependabotPolicyEvaluator", () => {
 
       warnSpy.mockRestore();
     });
+
+    it("skips evaluating alerts that do not have a fix available", () => {
+      const now = new Date();
+      const old = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString();
+
+      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
+      const result = evaluator.evaluateAlerts(
+        [makeAlert("url-1", "high", old, 1, true), makeAlert("url-2", "critical", old, 2, false)],
+        thresholds,
+      );
+
+      expect(result.totalOpenAlerts).toBe(2);
+      expect(result.violatingAlerts).toBe(1);
+      expect(result.violations.critical).toHaveLength(0);
+      expect(result.violations.high).toHaveLength(1);
+
+      expect(core.info).toHaveBeenCalledWith(
+        "1 alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: url-2"
+      );
+    });
+
+    it("can handle no alerts", () => {
+      const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
+      const result = evaluator.evaluateAlerts(
+        [],
+        thresholds,
+      );
+
+      expect(result.totalOpenAlerts).toBe(0);
+      expect(result.violatingAlerts).toBe(0);
+      expect(result.violations.critical).toHaveLength(0);
+      expect(result.violations.high).toHaveLength(0);
+      expect(result.oldestAlert).toBe("N/A");
+    });
+
   });
 
   describe("evaluateDependabotResults", () => {
@@ -150,7 +195,7 @@ describe("DependabotPolicyEvaluator", () => {
       expect(result.summary.violatingAlerts).toBeNull();
     });
 
-    it("shows 0 for totalOpenAlerts and violatingAlerts when there are no alerts", async () => {
+    it("displays correct data when there are no alerts", async () => {
       const evaluator = new DependabotPolicyEvaluator("token-123", "org/repo");
       mockgetDependabotAlerts.mockResolvedValueOnce([]);
 
@@ -159,6 +204,7 @@ describe("DependabotPolicyEvaluator", () => {
       expect(result.pipelinePasses).toBe(true);
       expect(result.summary.totalOpenAlerts).toBe(0);
       expect(result.summary.violatingAlerts).toBe(0);
+      expect(result.summary.oldestAlert).toBe("N/A");
     });
   });
 });

@@ -31,10 +31,13 @@ export interface DependabotAlert {
   severity: string;
   url: string;
   created_at: string;
+  number: number;
+  fix_available: boolean;
 }
 
 export interface AlertViolation {
-  opened_at: string;
+  url: string;
+  number: number;
   age: string;
 }
 
@@ -131,6 +134,7 @@ export class DependabotPolicyEvaluator {
     };
 
     let oldestAgeDays = 0;
+    const ignoredAlertUrls: string[] = []
 
     for (const alert of alerts) {
       const rawSeverity = alert.severity.toLowerCase();
@@ -155,13 +159,24 @@ export class DependabotPolicyEvaluator {
       const severity = rawSeverity as keyof PolicyThresholds;
       const threshold = thresholds[severity];
 
+      // Only evaluate alerts that have a fix available
+      if (!alert.fix_available) {
+        ignoredAlertUrls.push(alert.url)
+        continue;
+      }
+
       // Check if alert exceeds threshold
       if (ageDays > threshold.maxAgeDays) {
         violations[severity].push({
-          opened_at: alert.created_at,
+          number: alert.number,
+          url: alert.url,
           age: this.formatAge(ageDays),
         });
       }
+    }
+
+    if (ignoredAlertUrls.length > 0) {
+      core.info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
     }
 
     const violatingAlerts =
@@ -173,7 +188,7 @@ export class DependabotPolicyEvaluator {
     return {
       totalOpenAlerts: alerts.length,
       violatingAlerts,
-      oldestAlert: this.formatAge(oldestAgeDays),
+      oldestAlert: (alerts.length > 0) ? this.formatAge(oldestAgeDays) : "N/A",
       violations,
     };
   }

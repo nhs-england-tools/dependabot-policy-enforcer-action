@@ -15,44 +15,23 @@ import { PolicyResponse } from "../../src/lib/dependabotAlertsFetcher.js";
 // ---------------------------------------------------------------------------
 
 const mockHttp = vi.hoisted(() => {
-  const dispose = vi.fn();
-  const readBody = vi.fn<() => Promise<string>>();
-  const message = { statusCode: 200 };
-  const response = { readBody, message };
-  const get = vi
-    .fn<
-      (
-        url: string,
-        headers?: Record<string, string>,
-      ) => Promise<typeof response>
-    >()
-    .mockResolvedValue(response);
-  const post =
-    vi.fn<
-      (
-        url: string,
-        body: string,
-        headers?: Record<string, string>,
-      ) => Promise<typeof response>
-    >();
-  const patch =
-    vi.fn<
-      (
-        url: string,
-        body: string,
-        headers?: Record<string, string>,
-      ) => Promise<typeof response>
-    >();
+  const dispose = vi.fn()
+  const readBody = vi.fn<() => Promise<string>>()
+  const message = { statusCode: 200 }
+  const response = { readBody, message }
+  const get = vi.fn<(url: string, headers?: Record<string, string>) => Promise<typeof response>>().mockResolvedValue(response)
+  const post = vi.fn<(url: string, body: string, headers?: Record<string, string>) => Promise<typeof response>>()
+  const request = vi.fn<(verb: string, url: string, data?: string | null, headers?: Record<string, string>) => Promise<typeof response>>()
 
-  return { dispose, readBody, message, response, get, post, patch };
-});
+  return { dispose, readBody, message, response, get, post, request }
+})
 
 vi.mock("@actions/http-client", () => ({
   HttpClient: vi.fn().mockImplementation(function () {
     return {
       get: mockHttp.get,
       post: mockHttp.post,
-      patch: mockHttp.patch,
+      request: mockHttp.request,
       dispose: mockHttp.dispose,
     };
   }),
@@ -221,30 +200,32 @@ describe("buildCommentBody", () => {
     expect(body).toContain("### Violations:");
   });
 
-  it("should render violations as count bullet list", () => {
+  it("should render violations with link", () => {
     const body = buildCommentBody(
       "failed",
       makePolicy({
         findings: {
           violations: {
             critical: [
-              { openedAt: "2024-06-01T00:00:00Z", age: "10 days" },
-              { openedAt: "2024-06-02T00:00:00Z", age: "9 days" },
+              { url: "url-1", age: "10 days", number: 1 },
+              { url: "url-2", age: "5 days", number: 2 }
             ],
             high: [],
-            medium: [{ openedAt: "2024-06-03T00:00:00Z", age: "8 days" }],
-            low: null,
+            medium: [{ url: "url-3", age: "8 days", number: 3 }],
+            low: [],
           },
         },
       }),
       "enforce",
       "https://example.com/report",
     );
-    expect(body).toContain("- **critical:** 2");
-    expect(body).toContain("- **medium:** 1");
+    expect(body).toContain(`**critical:** [1](https://example.com/report/1), [2](https://example.com/report/2)`);
+    expect(body).not.toContain(`**high:**`);
+    expect(body).toContain(`**medium:** [3](https://example.com/report/3)`);
+    expect(body).not.toContain(`**low:**`);
   });
 
-  it("should render empty violations with 0", () => {
+  it("should render empty violations with 'None'", () => {
     const body = buildCommentBody(
       "passed",
       makePolicy({ findings: { violations: { critical: [], high: [], medium: [], low: [] } } }),
@@ -254,10 +235,11 @@ describe("buildCommentBody", () => {
     const violationsIdx = body.indexOf("### Violations:");
     const afterViolations = body.indexOf("### [View dependabot alerts]");
     const between = body.slice(violationsIdx, afterViolations);
-    expect(between).toContain("- **critical:** 0");
-    expect(between).toContain("- **high:** 0");
-    expect(between).toContain("- **medium:** 0");
-    expect(between).toContain("- **low:** 0");
+    expect(between).toContain("None");
+    expect(between).not.toContain("- **critical:**");
+    expect(between).not.toContain("- **high:**");
+    expect(between).not.toContain("- **medium:**");
+    expect(between).not.toContain("- **low:**");
   });
 
   it("should render null violations when dependabot disabled", () => {
@@ -292,7 +274,7 @@ describe("postPrComment", () => {
     summary: { total: 0 },
     findings: {
       violations: {
-        critical: [{ openedAt: "2024-06-01T00:00:00Z", age: "10 days" }],
+        critical: [{ age: "10 days", url: "url-1", number: 1 }],
         high: [],
         medium: [],
         low: [],
@@ -310,10 +292,10 @@ describe("postPrComment", () => {
       "enforce",
     );
 
-    expect(mockHttp.get).not.toHaveBeenCalled();
-    expect(mockHttp.post).not.toHaveBeenCalled();
-    expect(mockHttp.patch).not.toHaveBeenCalled();
-  });
+    expect(mockHttp.get).not.toHaveBeenCalled()
+    expect(mockHttp.post).not.toHaveBeenCalled()
+    expect(mockHttp.request).not.toHaveBeenCalled()
+  })
 
   it("should create a comment when no existing bot comment is found", async () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, "[]"));
@@ -338,18 +320,13 @@ describe("postPrComment", () => {
     expect(JSON.parse(postBody).body).toContain(COMMENT_MARKER);
   });
 
-  it("should update an existing bot comment when the marker is found", async () => {
+  it('should delete and recreate an existing bot comment when the marker is found', async () => {
     const existing: GithubComment[] = [
-      {
-        id: 55,
-        body: EXISTING_COMMENT_BODY,
-        user: { type: "Bot", login: "github-actions[bot]" },
-      },
-    ];
-    mockHttp.get.mockResolvedValueOnce(
-      makeResponse(200, JSON.stringify(existing)),
-    );
-    mockHttp.patch.mockResolvedValueOnce(makeResponse(200, "{}"));
+      { id: 55, body: EXISTING_COMMENT_BODY, user: { type: 'Bot', login: 'github-actions[bot]' } },
+    ]
+    mockHttp.get.mockResolvedValueOnce(makeResponse(200, JSON.stringify(existing)))
+    mockHttp.request.mockResolvedValueOnce(makeResponse(204, ''))
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
 
     await postPrComment(
       "tok",
@@ -360,11 +337,12 @@ describe("postPrComment", () => {
       "enforce",
     );
 
-    expect(mockHttp.patch).toHaveBeenCalledOnce();
-    expect(mockHttp.post).not.toHaveBeenCalled();
-    const [patchUrl, body] = mockHttp.patch.mock.calls[0] as [string, string];
-    expect(patchUrl).toContain("/issues/comments/55");
-  });
+    expect(mockHttp.request).toHaveBeenCalledOnce()
+    expect(mockHttp.post).toHaveBeenCalledOnce()
+    const [verb, deleteUrl] = mockHttp.request.mock.calls[0] as [string, string]
+    expect(verb).toBe('DELETE')
+    expect(deleteUrl).toContain('/issues/comments/55')
+  })
 
   it("should post a passed comment with ✅ in body", async () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, "[]"));
@@ -618,26 +596,22 @@ describe("postErrorPrComment", () => {
     expect(parsed).toContain("Server Error");
   });
 
-  it("should update an existing comment when the marker is found", async () => {
+  it('should delete and recreate an existing comment when the marker is found', async () => {
     const existing: GithubComment[] = [
-      {
-        id: 99,
-        body: EXISTING_COMMENT_BODY,
-        user: { type: "Bot", login: "github-actions[bot]" },
-      },
-    ];
-    mockHttp.get.mockResolvedValueOnce(
-      makeResponse(200, JSON.stringify(existing)),
-    );
-    mockHttp.patch.mockResolvedValueOnce(makeResponse(200, "{}"));
+      { id: 99, body: EXISTING_COMMENT_BODY, user: { type: 'Bot', login: 'github-actions[bot]' } },
+    ]
+    mockHttp.get.mockResolvedValueOnce(makeResponse(200, JSON.stringify(existing)))
+    mockHttp.request.mockResolvedValueOnce(makeResponse(204, ''))
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
 
     await postErrorPrComment("tok", "org/repo", 3, "enforce", "err");
 
-    expect(mockHttp.patch).toHaveBeenCalledOnce();
-    expect(mockHttp.post).not.toHaveBeenCalled();
-    const [patchUrl] = mockHttp.patch.mock.calls[0] as [string, string];
-    expect(patchUrl).toContain("/issues/comments/99");
-  });
+    expect(mockHttp.request).toHaveBeenCalledOnce()
+    expect(mockHttp.post).toHaveBeenCalledOnce()
+    const [verb, deleteUrl] = mockHttp.request.mock.calls[0] as [string, string]
+    expect(verb).toBe('DELETE')
+    expect(deleteUrl).toContain('/issues/comments/99')
+  })
 
   it("should post error body for network failures", async () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, "[]"));

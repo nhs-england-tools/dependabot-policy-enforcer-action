@@ -5,6 +5,7 @@
  * upserts it on the pull request (idempotent: identified by COMMENT_MARKER).
  */
 
+import * as core from "@actions/core";
 import { HttpClient } from "@actions/http-client";
 import { githubHeaders, USER_AGENT, GITHUB_API_BASE } from "./github.js";
 import { PolicyResponse } from "./dependabotAlertsFetcher.js";
@@ -50,14 +51,21 @@ export function buildCommentBody(
 
   const violations = policy.findings;
   lines.push("", "### Violations:");
+  const violation_lines: string[] = [];
   for (const [key, value] of Object.entries(violations.violations)) {
+    core.info(`Processing violations for severity: ${key}, value: ${JSON.stringify(value)}`);
     if (!Array.isArray(value)) {
-      lines.push(`- **${key}:** null`);
+      violation_lines.push(`- **${key}:** null`);
       continue;
     }
-    lines.push(`- **${key}:** ${value.length}`);
+    if (!(value.length === 0)) {
+      violation_lines.push(`- **${key}:** ${value.map(v => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+    }
   }
-
+  if (violation_lines.length === 0) {
+    violation_lines.push("None");
+  }
+  lines.push(...violation_lines);
   lines.push("", `### [View dependabot alerts](${url})`);
 
   return lines.join("\n");
@@ -150,26 +158,23 @@ async function createPrComment(
   }
 }
 
-async function updatePrComment(
+async function deletePrComment(
   opts: Omit<CommentOptions, "prNumber"> & { commentId: number },
-  body: string,
 ): Promise<void> {
   const { token, owner, repo, commentId } = opts;
   const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/issues/comments/${commentId}`;
   const client = new HttpClient(USER_AGENT);
   try {
-    const response = await client.patch(url, JSON.stringify({ body }), {
+    const response = await client.request("DELETE", url, null, {
       ...githubHeaders(token),
-      "Content-Type": "application/json",
     });
     const status = response.message.statusCode ?? 0;
-    if (status !== 200) {
+    if (status !== 204) {
       const responseBody = await response.readBody();
       throw new Error(
-        `GitHub API error updating comment: HTTP ${status} ${responseBody}`,
+        `GitHub API error deleting comment: HTTP ${status} ${responseBody}`,
       );
     }
-    await response.readBody();
   } finally {
     client.dispose();
   }
@@ -189,18 +194,16 @@ async function upsertPrComment(
       (c) => typeof c.body === "string" && c.body.includes(COMMENT_MARKER),
     );
     if (existing) {
-      await updatePrComment(
+      await deletePrComment(
         {
           token: opts.token,
           owner: opts.owner,
           repo: opts.repo,
           commentId: existing.id,
         },
-        body,
       );
-    } else {
-      await createPrComment(opts, body);
     }
+    await createPrComment(opts, body);
   });
 }
 
