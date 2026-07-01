@@ -1,0 +1,21 @@
+name: Dependabot Policy Check (Report)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  vulnerability-alerts: read
+
+jobs:
+  dependabot-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: nhs-england-tools/dependabot-policy-enforcer-action@v2
+        with:
+          mode: report
+          github-token: ${{ secrets.GITHUB_TOKEN }}
