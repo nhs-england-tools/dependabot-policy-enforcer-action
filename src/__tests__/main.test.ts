@@ -224,8 +224,6 @@ describe("Action Entry Point (run)", () => {
       switch (name) {
         case "mode":
           return "enforce";
-        case "timeout-ms":
-          return "10000";
         case "github-token":
           return "";
         default:
@@ -339,12 +337,6 @@ describe("PR comment integration", () => {
 
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret":
-          return "test-secret-value";
-        case "api-endpoint":
-          return "https://api.example.com/check";
-        case "timeout-ms":
-          return "10000";
         case "github-token":
           return "gha-token-abc";
         case "mode":
@@ -673,14 +665,8 @@ describe("Error-path PR comment", () => {
 
     mockGetInput.mockImplementation((name: string) => {
       switch (name) {
-        case "secret":
-          return "test-secret-value";
-        case "api-endpoint":
-          return "https://api.example.com/check";
         case "mode":
           return "enforce";
-        case "timeout-ms":
-          return "10000";
         case "github-token":
           return "gha-token-abc";
         default:
