@@ -11,8 +11,9 @@ This action:
 
 1. Reads the workflow token from the `github-token` input
 2. Fetches open Dependabot alerts from the GitHub API
-3. Evaluates alerts against severity-based policy thresholds
-4. Fails the check with a clear message when policy thresholds are exceeded in `enforce` mode
+3. Evaluates the age of alerts against severity-based policy thresholds
+4. Evaluates the old alerts against the minimum severity level (`blocking-severity`) currently being enforced
+5. Fails the check with a clear message when policy thresholds are exceeded in `enforce` mode or reports the findings in `report` mode
 
 ## Table of Contents
 
@@ -92,6 +93,7 @@ jobs:
         with:
           mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          blocking-severity: critical
 ```
 
 The `github-token` input is required. The action uses it to fetch Dependabot alerts from the GitHub API. The `pull-requests: write` permission is only required for PR comments.
@@ -101,6 +103,7 @@ The `github-token` input is required. The action uses it to fetch Dependabot ale
 | Input | Required | Default | Description |
 | ----- | -------- | ------- | ----------- |
 | `mode` | No | `enforce` | Policy mode: `enforce` (fail workflow on policy violation) or `report` (log warnings but do not fail). |
+| `blocking-severity` | No | `critical` | Once an alert is older than the configured threshold, blocking-severity defines the minimum severity at which that alert is classified as a violation. Allowed values: `critical`, `high`, `medium`, `low`. In enforce mode, these violations can fail the workflow. In report mode, they are still reported as violations but do not fail the workflow.|
 | `github-token` | Yes | — | GitHub token used to fetch Dependabot alerts and post a policy summary comment on pull requests. Use `secrets.GITHUB_TOKEN`. Requires `vulnerability-alerts: read` permission. |
 
 ### Modes
@@ -122,8 +125,10 @@ The comment includes:
 
 - **Status** — ✅ Passed, ❌ Failed, or ⚠️ Exempted
 - **Mode** — the active mode for this run
+- **Severity** — the `blocking-severity` used for this run.
 - **Summary** — severity counts from the policy check
 - **Violations** — findings per category with link to alert. If nothing is shown, then no violating alerts were found.
+- **Alerts needing attention** - Details alerts that were found to be older than the current age thresholds but have a severity below the configured `blocking-severity`
 - **Link** — direct link to the repository's Dependabot alerts page
 
 The comment is idempotent: subsequent runs replace the previous action-managed comment rather than creating duplicates. Comment failures are logged as warnings and never mask the policy decision.
