@@ -15,6 +15,7 @@ import {
 import { extractPrNumber } from "./lib/github.js";
 import { isDependencyUpdate } from "./lib/filecheck.js";
 import { DependabotPolicyEvaluator } from "./lib/dependabotAlertsFetcher.js";
+import { type Severity, SEVERITY_RANK } from "./lib/policyConfig.js";
 
 const LOG_STYLE = {
   reset: "\x1b[0m",
@@ -30,6 +31,7 @@ export async function run(): Promise<void> {
   // ---------------------------------------------------------------
   const repo = process.env.GITHUB_REPOSITORY ?? "";
   const mode = (core.getInput("mode") || "enforce").trim().toLowerCase();
+  const blockingSeverity = (core.getInput("blocking-severity") || "critical").trim().toLowerCase() as Severity;
   const githubToken = core.getInput("github-token");
   core.setSecret(githubToken);
 
@@ -57,10 +59,19 @@ export async function run(): Promise<void> {
       return;
     }
 
-    core.info(`Checking Dependabot policy for ${repo}…`);
+    if (!(blockingSeverity in SEVERITY_RANK)) {
+      core.setFailed(
+        `blocking-severity must be one of "critical", "high", "medium", "low", got "${blockingSeverity}".`,
+      );
+      return;
+    }
+
+    core.info(`${LOG_STYLE.bold}${LOG_STYLE.green}This action will check ${repo} for open Dependabot Security alerts older than the allowed thresholds.`);
+    core.info(`Any alerts at or above the blockingSeverity level AND older than the allowed threshold will be treated as violations.${LOG_STYLE.reset}\n`);
+    core.info(`Checking Dependabot policy for ${repo} in ${mode} mode with blockingSeverity: ${blockingSeverity}`);
 
     const evaluator = new DependabotPolicyEvaluator(githubToken, repo);
-    const result = await evaluator.evaluateDependabotResults(mode);
+    const result = await evaluator.evaluateDependabotResults(mode, blockingSeverity);
     const prNumber = extractPrNumber(
       process.env.GITHUB_EVENT_NAME,
       process.env.GITHUB_REF,
@@ -125,7 +136,7 @@ export async function run(): Promise<void> {
 
     // Post a PR comment if the github-token is provided, regardless of pass/fail, but only for "pull_request" events
     try {
-      await postPrComment(githubToken, repo, prNumber, result, status, mode);
+      await postPrComment(githubToken, repo, prNumber, result, status, mode, blockingSeverity);
     } catch (commentError) {
       const commentMsg =
         commentError instanceof Error

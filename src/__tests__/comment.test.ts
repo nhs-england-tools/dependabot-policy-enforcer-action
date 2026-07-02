@@ -15,16 +15,38 @@ import { PolicyResponse } from "../../src/lib/dependabotAlertsFetcher.js";
 // ---------------------------------------------------------------------------
 
 const mockHttp = vi.hoisted(() => {
-  const dispose = vi.fn()
-  const readBody = vi.fn<() => Promise<string>>()
-  const message = { statusCode: 200 }
-  const response = { readBody, message }
-  const get = vi.fn<(url: string, headers?: Record<string, string>) => Promise<typeof response>>().mockResolvedValue(response)
-  const post = vi.fn<(url: string, body: string, headers?: Record<string, string>) => Promise<typeof response>>()
-  const request = vi.fn<(verb: string, url: string, data?: string | null, headers?: Record<string, string>) => Promise<typeof response>>()
+  const dispose = vi.fn();
+  const readBody = vi.fn<() => Promise<string>>();
+  const message = { statusCode: 200 };
+  const response = { readBody, message };
+  const get = vi
+    .fn<
+      (
+        url: string,
+        headers?: Record<string, string>,
+      ) => Promise<typeof response>
+    >()
+    .mockResolvedValue(response);
+  const post =
+    vi.fn<
+      (
+        url: string,
+        body: string,
+        headers?: Record<string, string>,
+      ) => Promise<typeof response>
+    >();
+  const request =
+    vi.fn<
+      (
+        verb: string,
+        url: string,
+        data?: string | null,
+        headers?: Record<string, string>,
+      ) => Promise<typeof response>
+    >();
 
-  return { dispose, readBody, message, response, get, post, request }
-})
+  return { dispose, readBody, message, response, get, post, request };
+});
 
 vi.mock("@actions/http-client", () => ({
   HttpClient: vi.fn().mockImplementation(function () {
@@ -64,7 +86,13 @@ function makePolicy(overrides: Partial<PolicyResponse> = {}): PolicyResponse {
     repository: "org/repo",
     summary: {},
     findings: {
-      violations: {
+      blocking: {
+        critical: [],
+        high: [],
+        medium: [],
+        low: [],
+      },
+      informational: {
         critical: [],
         high: [],
         medium: [],
@@ -86,6 +114,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain(COMMENT_MARKER);
   });
@@ -96,6 +125,7 @@ describe("buildCommentBody", () => {
       makePolicy({ mode: "report" }),
       "report",
       "https://example.com/report",
+      "critical",
     );
     expect(body.startsWith(COMMENT_MARKER)).toBe(true);
   });
@@ -106,8 +136,21 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("## 🤖 Dependabot Policy Check");
+  });
+
+  it("should include Mode and severity", () => {
+    const body = buildCommentBody(
+      "passed",
+      makePolicy(),
+      "enforce",
+      "https://example.com/report",
+      "high",
+    );
+    expect(body).toContain("**Mode:** enforce");
+    expect(body).toContain("**Severity:** high");
   });
 
   it("should show passed status with checkmark", () => {
@@ -116,6 +159,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("✅ Passed");
     expect(body).not.toContain("❌");
@@ -127,6 +171,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("❌ Failed");
     expect(body).not.toContain("✅");
@@ -138,22 +183,11 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("⚠️ Exempted — dependency update detected");
     expect(body).not.toContain("✅");
     expect(body).not.toContain("❌");
-  });
-
-  it("should show error status with error message", () => {
-    const body = buildCommentBody(
-      "error",
-      makePolicy(),
-      "enforce",
-      "https://example.com/report",
-    );
-    expect(body).toContain("❌ Error — policy check could not complete");
-    expect(body).not.toContain("✅");
-    expect(body).not.toContain("⚠️");
   });
 
   it("should include ### Summary: section", () => {
@@ -162,6 +196,7 @@ describe("buildCommentBody", () => {
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("### Summary:");
   });
@@ -172,6 +207,7 @@ describe("buildCommentBody", () => {
       makePolicy({ summary: { totalOpenAlerts: 3, violatingAlerts: 1 } }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     expect(body).toContain("- **totalOpenAlerts:** 3");
     expect(body).toContain("- **violatingAlerts:** 1");
@@ -183,56 +219,141 @@ describe("buildCommentBody", () => {
       makePolicy({ summary: {} }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
     const summaryIdx = body.indexOf("### Summary:");
-    const violationsIdx = body.indexOf("### Violations:");
-    const between = body.slice(summaryIdx, violationsIdx);
+    const noViolationsIdx = body.indexOf("### 🎉No violations found");
+    const between = body.slice(summaryIdx, noViolationsIdx);
     expect(between).not.toContain("- **");
   });
 
-  it("should include ### Violations: section", () => {
+  it("should include ### 🚨 Violations: section when the status is failed", () => {
     const body = buildCommentBody(
-      "passed",
+      "failed",
       makePolicy(),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
-    expect(body).toContain("### Violations:");
+    expect(body).toContain("### 🚨 Violations:");
   });
 
-  it("should render violations with link", () => {
+  it("should render blocking violations with links", () => {
     const body = buildCommentBody(
       "failed",
       makePolicy({
         findings: {
-          violations: {
+          blocking: {
             critical: [
               { url: "url-1", age: "10 days", number: 1 },
-              { url: "url-2", age: "5 days", number: 2 }
+              { url: "url-2", age: "5 days", number: 2 },
             ],
             high: [],
             medium: [{ url: "url-3", age: "8 days", number: 3 }],
+            low: [],
+          },
+          informational: { critical: [], high: [], medium: [], low: [] },
+        },
+      }),
+      "enforce",
+      "https://example.com/report",
+      "critical",
+    );
+    expect(body).toContain(
+      `**critical:** [1](https://example.com/report/1), [2](https://example.com/report/2)`,
+    );
+    expect(body).not.toContain(`**high:**`);
+    expect(body).toContain(`**medium:** [3](https://example.com/report/3)`);
+    expect(body).not.toContain(`**low:**`);
+  });
+
+  it("should renderAlerts needing attention in a separate section", () => {
+    const body = buildCommentBody(
+      "passed",
+      makePolicy({
+        findings: {
+          blocking: { critical: [], high: [], medium: [], low: [] },
+          informational: {
+            critical: [],
+            high: [{ url: "url-1", age: "21 days", number: 1 }],
+            medium: [],
             low: [],
           },
         },
       }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
-    expect(body).toContain(`**critical:** [1](https://example.com/report/1), [2](https://example.com/report/2)`);
-    expect(body).not.toContain(`**high:**`);
-    expect(body).toContain(`**medium:** [3](https://example.com/report/3)`);
-    expect(body).not.toContain(`**low:**`);
+    expect(body).toContain("### ⚠️ Alerts needing attention:");
+    expect(body).toContain(`**high:** [1](https://example.com/report/1)`);
   });
 
-  it("should render empty violations with 'None'", () => {
+  it("should collapse informational alerts to general link when more than 20 exist", () => {
+    const manyHighInformational = Array.from({ length: 35 }, (_, idx) => ({
+      url: `url-${idx + 1}`,
+      age: "21 days",
+      number: idx + 1,
+    }));
+
     const body = buildCommentBody(
       "passed",
-      makePolicy({ findings: { violations: { critical: [], high: [], medium: [], low: [] } } }),
+      makePolicy({
+        findings: {
+          blocking: { critical: [], high: [], medium: [], low: [] },
+          informational: {
+            critical: [],
+            high: manyHighInformational,
+            medium: [],
+            low: [],
+          },
+        },
+      }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
-    const violationsIdx = body.indexOf("### Violations:");
+
+    expect(body).toContain("### ⚠️ Alerts needing attention:");
+    expect(body).toContain("**high:** [ 35 alerts found](https://example.com/report)");
+    expect(body).not.toContain("https://example.com/report/1");
+  });
+
+  it("should not render informational section when there are noAlerts needing attention", () => {
+    const body = buildCommentBody(
+      "passed",
+      makePolicy({
+        findings: {
+          blocking: { critical: [{ url: "url-1", age: "21 days", number: 1 }], high: [], medium: [], low: [] },
+          informational: {
+            critical: [],
+            high: [],
+            medium: [],
+            low: [],
+          },
+        },
+      }),
+      "enforce",
+      "https://example.com/report",
+      "critical",
+    );
+    expect(body).not.toContain("### ⚠️ Alerts needing attention:");
+  });
+
+  it("should render empty violations with 'None' for non-passed status", () => {
+    const body = buildCommentBody(
+      "failed",
+      makePolicy({
+        findings: {
+          blocking: { critical: [], high: [], medium: [], low: [] },
+          informational: { critical: [], high: [], medium: [], low: [] },
+        },
+      }),
+      "enforce",
+      "https://example.com/report",
+      "critical",
+    );
+    const violationsIdx = body.indexOf("### 🚨 Violations:");
     const afterViolations = body.indexOf("### [View dependabot alerts]");
     const between = body.slice(violationsIdx, afterViolations);
     expect(between).toContain("None");
@@ -242,24 +363,58 @@ describe("buildCommentBody", () => {
     expect(between).not.toContain("- **low:**");
   });
 
-  it("should render null violations when dependabot disabled", () => {
+  it("should render celebratory message when passed with no violations", () => {
     const body = buildCommentBody(
       "passed",
       makePolicy({
         findings: {
-          violations: { critical: null, high: null, medium: null, low: null},
+          blocking: { critical: [], high: [], medium: [], low: [] },
+          informational: {
+            critical: [{ url: "url-1", age: "21 days", number: 1 }],
+            high: [],
+            medium: [],
+            low: [],
+          },
         },
       }),
       "enforce",
       "https://example.com/report",
+      "critical",
     );
-    const violationsIdx = body.indexOf("### Violations:");
-    const afterViolations = body.indexOf("### [View dependabot alerts]");
-    const between = body.slice(violationsIdx, afterViolations);
-    expect(between).toContain("- **critical:** null");
+
+    expect(body).toContain("### 🎉No violations found");
+    expect(body).not.toContain("### 🚨 Violations:");
+    expect(body).not.toContain("None");
+    expect(body).toContain("### ⚠️ Alerts needing attention:");
+  });
+
+  it("should render a 'passed' comment when Dependabot is disabled", () => {
+    const body = buildCommentBody(
+      "passed",
+      makePolicy({
+        summary: {
+          totalOpenAlerts: null,
+          violatingAlerts: null,
+          informationalAlerts: null,
+          oldestAlert: null,
+        },
+        message: "Dependabot alerts are disabled for this repository.",
+      }),
+      "enforce",
+      "https://github.com/org/repo/security/dependabot",
+      "critical",
+    );
+    expect(body).toContain("✅ Passed");
+    expect(body).toContain("- **totalOpenAlerts:** null");
+    expect(body).toContain("- **violatingAlerts:** null");
+    expect(body).toContain("- **informationalAlerts:** null");
+    expect(body).toContain("- **oldestAlert:** null");
+    expect(body).toContain("Dependabot alerts are disabled for this repository.");
+    expect(body).not.toContain("### 🎉No violations found");
+    expect(body).not.toContain("### 🚨 Violations:");
+    expect(body).not.toContain("Informational violations");
   });
 });
-
 // ---------------------------------------------------------------------------
 // postPrComment
 // ---------------------------------------------------------------------------
@@ -273,8 +428,14 @@ describe("postPrComment", () => {
     repository: "test-org/test-repo",
     summary: { total: 0 },
     findings: {
-      violations: {
+      blocking: {
         critical: [{ age: "10 days", url: "url-1", number: 1 }],
+        high: [],
+        medium: [],
+        low: [],
+      },
+      informational: {
+        critical: [],
         high: [],
         medium: [],
         low: [],
@@ -290,12 +451,13 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
-    expect(mockHttp.get).not.toHaveBeenCalled()
-    expect(mockHttp.post).not.toHaveBeenCalled()
-    expect(mockHttp.request).not.toHaveBeenCalled()
-  })
+    expect(mockHttp.get).not.toHaveBeenCalled();
+    expect(mockHttp.post).not.toHaveBeenCalled();
+    expect(mockHttp.request).not.toHaveBeenCalled();
+  });
 
   it("should create a comment when no existing bot comment is found", async () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, "[]"));
@@ -308,6 +470,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "high",
     );
 
     expect(mockHttp.get).toHaveBeenCalledOnce();
@@ -318,15 +481,22 @@ describe("postPrComment", () => {
     const [postUrl, postBody] = mockHttp.post.mock.calls[0] as [string, string];
     expect(postUrl).toContain("/repos/test-org/test-repo/issues/7/comments");
     expect(JSON.parse(postBody).body).toContain(COMMENT_MARKER);
+    expect(JSON.parse(postBody).body).toContain("**Severity:** high");
   });
 
-  it('should delete and recreate an existing bot comment when the marker is found', async () => {
+  it("should delete and recreate an existing bot comment when the marker is found", async () => {
     const existing: GithubComment[] = [
-      { id: 55, body: EXISTING_COMMENT_BODY, user: { type: 'Bot', login: 'github-actions[bot]' } },
-    ]
-    mockHttp.get.mockResolvedValueOnce(makeResponse(200, JSON.stringify(existing)))
-    mockHttp.request.mockResolvedValueOnce(makeResponse(204, ''))
-    mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
+      {
+        id: 55,
+        body: EXISTING_COMMENT_BODY,
+        user: { type: "Bot", login: "github-actions[bot]" },
+      },
+    ];
+    mockHttp.get.mockResolvedValueOnce(
+      makeResponse(200, JSON.stringify(existing)),
+    );
+    mockHttp.request.mockResolvedValueOnce(makeResponse(204, ""));
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, "{}"));
 
     await postPrComment(
       "tok",
@@ -335,14 +505,18 @@ describe("postPrComment", () => {
       VALID_BODY,
       "failed",
       "enforce",
+      "critical",
     );
 
-    expect(mockHttp.request).toHaveBeenCalledOnce()
-    expect(mockHttp.post).toHaveBeenCalledOnce()
-    const [verb, deleteUrl] = mockHttp.request.mock.calls[0] as [string, string]
-    expect(verb).toBe('DELETE')
-    expect(deleteUrl).toContain('/issues/comments/55')
-  })
+    expect(mockHttp.request).toHaveBeenCalledOnce();
+    expect(mockHttp.post).toHaveBeenCalledOnce();
+    const [verb, deleteUrl] = mockHttp.request.mock.calls[0] as [
+      string,
+      string,
+    ];
+    expect(verb).toBe("DELETE");
+    expect(deleteUrl).toContain("/issues/comments/55");
+  });
 
   it("should post a passed comment with ✅ in body", async () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, "[]"));
@@ -355,6 +529,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     const [, postBody] = mockHttp.post.mock.calls[0] as [string, string];
@@ -372,6 +547,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "failed",
       "enforce",
+      "critical",
     );
 
     const [, postBody] = mockHttp.post.mock.calls[0] as [string, string];
@@ -389,6 +565,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "exempted",
       "enforce",
+      "critical",
     );
 
     const [, postBody] = mockHttp.post.mock.calls[0] as [string, string];
@@ -408,6 +585,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     const [_, headers] = mockHttp.get.mock.calls[0] as [
@@ -429,6 +607,7 @@ describe("postPrComment", () => {
         VALID_BODY,
         "passed",
         "enforce",
+        "critical",
       ),
     ).rejects.toThrow("HTTP 403");
   });
@@ -446,6 +625,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     expect(mockHttp.get).toHaveBeenCalledTimes(2);
@@ -465,6 +645,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     expect(mockHttp.get).toHaveBeenCalledTimes(2);
@@ -484,6 +665,7 @@ describe("postPrComment", () => {
         VALID_BODY,
         "passed",
         "enforce",
+        "critical",
       ),
     ).rejects.toThrow("HTTP 504");
   });
@@ -499,6 +681,7 @@ describe("postPrComment", () => {
         VALID_BODY,
         "passed",
         "enforce",
+        "critical",
       ),
     ).rejects.toThrow("HTTP 401");
 
@@ -516,6 +699,7 @@ describe("postPrComment", () => {
       VALID_BODY,
       "passed",
       "enforce",
+      "critical",
     );
 
     const [listUrl] = mockHttp.get.mock.calls[0] as [string];
@@ -596,22 +780,31 @@ describe("postErrorPrComment", () => {
     expect(parsed).toContain("Server Error");
   });
 
-  it('should delete and recreate an existing comment when the marker is found', async () => {
+  it("should delete and recreate an existing comment when the marker is found", async () => {
     const existing: GithubComment[] = [
-      { id: 99, body: EXISTING_COMMENT_BODY, user: { type: 'Bot', login: 'github-actions[bot]' } },
-    ]
-    mockHttp.get.mockResolvedValueOnce(makeResponse(200, JSON.stringify(existing)))
-    mockHttp.request.mockResolvedValueOnce(makeResponse(204, ''))
-    mockHttp.post.mockResolvedValueOnce(makeResponse(201, '{}'))
+      {
+        id: 99,
+        body: EXISTING_COMMENT_BODY,
+        user: { type: "Bot", login: "github-actions[bot]" },
+      },
+    ];
+    mockHttp.get.mockResolvedValueOnce(
+      makeResponse(200, JSON.stringify(existing)),
+    );
+    mockHttp.request.mockResolvedValueOnce(makeResponse(204, ""));
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, "{}"));
 
     await postErrorPrComment("tok", "org/repo", 3, "enforce", "err");
 
-    expect(mockHttp.request).toHaveBeenCalledOnce()
-    expect(mockHttp.post).toHaveBeenCalledOnce()
-    const [verb, deleteUrl] = mockHttp.request.mock.calls[0] as [string, string]
-    expect(verb).toBe('DELETE')
-    expect(deleteUrl).toContain('/issues/comments/99')
-  })
+    expect(mockHttp.request).toHaveBeenCalledOnce();
+    expect(mockHttp.post).toHaveBeenCalledOnce();
+    const [verb, deleteUrl] = mockHttp.request.mock.calls[0] as [
+      string,
+      string,
+    ];
+    expect(verb).toBe("DELETE");
+    expect(deleteUrl).toContain("/issues/comments/99");
+  });
 
   it("should post error body for network failures", async () => {
     mockHttp.get.mockResolvedValueOnce(makeResponse(200, "[]"));
