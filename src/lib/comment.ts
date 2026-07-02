@@ -8,7 +8,8 @@
 import * as core from "@actions/core";
 import { HttpClient } from "@actions/http-client";
 import { githubHeaders, USER_AGENT, GITHUB_API_BASE } from "./github.js";
-import { PolicyResponse } from "./dependabotAlertsFetcher.js";
+import { AlertViolation, PolicyResponse, SeverityViolations } from "./dependabotAlertsFetcher.js";
+import { type Severity } from "./policyConfig.js";
 
 /** HTML marker embedded in every comment body, used to find and update it. */
 export const COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
@@ -19,21 +20,29 @@ export const COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
 
 
 export type PolicyStatus = "passed" | "failed" | "exempted" | "error";
+const DISABLED_ALERTS_MESSAGE = "Dependabot alerts are disabled for this repository.";
+const MAX_INFORMATIONAL_ALERT_LINKS = 20;
+
+function buildStatusLine(status: PolicyStatus): string {
+  switch (status) {
+    case "passed":
+      return "**Status:** ✅ Passed";
+    case "exempted":
+      return "**Status:** ⚠️ Exempted — dependency update detected";
+    default:
+      return "**Status:** ❌ Failed";
+  }
+}
+
 
 export function buildCommentBody(
   status: PolicyStatus,
   policy: PolicyResponse,
   mode: string,
   url: string,
+  severity: Severity,
 ): string {
-  const statusLine =
-    status === "passed"
-      ? "**Status:** ✅ Passed"
-      : status === "exempted"
-        ? "**Status:** ⚠️ Exempted — dependency update detected"
-        : status === "error"
-          ? "**Status:** ❌ Error — policy check could not complete"
-          : "**Status:** ❌ Failed";
+  const statusLine = buildStatusLine(status);
   const lines: string[] = [
     COMMENT_MARKER,
     "## 🤖 Dependabot Policy Check",
@@ -42,7 +51,8 @@ export function buildCommentBody(
   ];
 
   const modeLine = `**Mode:** ${mode}`;
-  lines.push(modeLine);
+  const severityLine = `**Severity:** ${severity}`;
+  lines.push(modeLine, severityLine);
   const summary = policy.summary;
   lines.push("", "### Summary:");
   for (const [key, value] of Object.entries(summary)) {
@@ -50,25 +60,58 @@ export function buildCommentBody(
   }
 
   const violations = policy.findings;
-  lines.push("", "### Violations:");
-  const violation_lines: string[] = [];
-  for (const [key, value] of Object.entries(violations.violations)) {
-    core.info(`Processing violations for severity: ${key}, value: ${JSON.stringify(value)}`);
-    if (!Array.isArray(value)) {
-      violation_lines.push(`- **${key}:** null`);
-      continue;
+  const hasBlockingViolations = Object.values(violations.blocking).some(
+    (entries) => entries.length > 0,
+  );
+
+  if (status === "passed" && !hasBlockingViolations) {
+    if (policy.message === DISABLED_ALERTS_MESSAGE) {
+      lines.push("", policy.message);
+    } else {
+      lines.push("", "### 🎉No violations found");
     }
-    if (!(value.length === 0)) {
-      violation_lines.push(`- **${key}:** ${value.map(v => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+  } else {
+    lines.push("", "### 🚨 Violations:");
+    lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently being enforced.");
+    if (mode === "enforce") {
+      lines.push("", "The pipeline will fail until these alerts are remediated");
+    }
+    const blocking_lines: string[] = [];
+    for (const [key, value] of Object.entries(violations.blocking)) {
+      if (value.length > 0) {
+        blocking_lines.push(`- **${key}:** ${value.map((v: AlertViolation) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      }
+    }
+
+    if (blocking_lines.length === 0) {
+      blocking_lines.push("None");
+    }
+    lines.push(...blocking_lines);
+  }
+
+  const informational_lines: string[] = [];
+  for (const [key, value] of Object.entries(violations.informational)) {
+    if (value.length > 0) {
+      if (value.length > MAX_INFORMATIONAL_ALERT_LINKS) {
+        informational_lines.push(`- **${key}:** [ ${value.length} alerts found](${url})`);
+      } else {
+        informational_lines.push(`- **${key}:** ${value.map((v: AlertViolation) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      }
     }
   }
-  if (violation_lines.length === 0) {
-    violation_lines.push("None");
+  if (informational_lines.length > 0) {
+    lines.push("", "### ⚠️ Alerts needing attention:");
+    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced. \
+    They are reported here for information and we recommend they are addressed in a timely manner.");
+    lines.push(...informational_lines);
   }
-  lines.push(...violation_lines);
+
+
   lines.push("", `### [View dependabot alerts](${url})`);
 
-  return lines.join("\n");
+  const result = lines.join("\n");
+  core.info(result);
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,11 +257,12 @@ export async function postPrComment(
   body: PolicyResponse,
   status: PolicyStatus,
   mode: string,
+  severity: Severity,
 ): Promise<void> {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split("/");
     const url = `https://github.com/${owner}/${repoName}/security/dependabot`;
-    const commentBody = buildCommentBody(status, body, mode, url);
+    const commentBody = buildCommentBody(status, body, mode, url, severity);
     await upsertPrComment(
       { token: githubToken, owner, repo: repoName, prNumber },
       commentBody,

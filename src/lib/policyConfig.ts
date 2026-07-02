@@ -8,20 +8,38 @@ export interface PolicyThresholds {
 const thresholds = {
       critical: {
         maxAgeDays: 5,
-        description: "Critical alerts must be addressed within 10 days",
+        description: "Critical alerts must be addressed within 5 days",
       },
       high: {
-        maxAgeDays: 1000,
-        description: "High alerts must be addressed within 1000 days",
+        maxAgeDays: 15,
+        description: "High alerts must be addressed within 15 days",
       },
       medium: {
-        maxAgeDays: 1000,
-        description: "Medium alerts must be addressed within 1000 days",
+        maxAgeDays: 30,
+        description: "Medium alerts must be addressed within 30 days",
       },
       low: {
-        maxAgeDays: 1000,
-        description: "Low alerts must be addressed within 1000 days",
+        maxAgeDays: 40,
+        description: "Low alerts must be addressed within 40 days",
       },
     };
 
 export default thresholds;
+
+export type Severity = "critical" | "high" | "medium" | "low";
+
+export const SEVERITY_RANK: Record<Severity, number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
+
+export function isBlockingSeverity(
+  severity: Severity,
+  blockingSeverity: Severity,
+): boolean {
+  const rank = SEVERITY_RANK[severity as Severity];
+  if (rank === undefined) return false;
+  return rank >= SEVERITY_RANK[blockingSeverity];
+}
