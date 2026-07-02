@@ -149,6 +149,20 @@ The exemption requires the `github-token` input to fetch the PR file list from t
 
 Exempted PRs show a status of ⚠️ **Exempted — dependency update detected** in the PR comment and workflow logs.
 
+### Required workflows
+
+Pre-built workflow files are available in the `required-workflows/` directory for use as [GitHub required workflows](https://docs.github.com/en/organizations/managing-organization-settings/managing-required-workflows-for-your-organization) across your organisation.
+
+| Workflow | Mode | Blocking severity | Description |
+| -------- | ---- | ----------------- | ----------- |
+| `dependabot-policy-report.yaml` | `report` | default | Reports policy findings without blocking merges. |
+| `dependabot-policy-enforce-critical.yaml` | `enforce` | `critical` | Blocks only on critical-severity violations. |
+| `dependabot-policy-enforce-high.yaml` | `enforce` | `high` | Blocks on high and critical violations. |
+| `dependabot-policy-enforce-medium.yaml` | `enforce` | `medium` | Blocks on medium, high, and critical violations. |
+| `dependabot-policy-enforce-all.yaml` | `enforce` | `low` | Blocks on any severity violation. |
+
+To adopt one, add it as a required workflow in your organisation settings, targeting the repositories you want to enforce.
+
 ### Testing
 
 Run the test suite:
