@@ -69,7 +69,7 @@ export function buildCommentBody(
   );
   const hasAnyViolations = hasBlockingViolations || hasInformationalViolations;
 
-  if (status === "passed" && !hasAnyViolations) {
+  if (status === "passed" && !hasAnyViolations && !isReportMode) {
     if (policy.message === DISABLED_ALERTS_MESSAGE) {
       lines.push("", policy.message);
     } else {
@@ -122,6 +122,9 @@ export function buildCommentBody(
     They are reported here for information and we recommend they are addressed in a timely manner.");
     }
     lines.push(...informational_lines);
+  }
+  else if (isReportMode) {
+    lines.push("", "### 🎉No Alerts needing attention found");
   }
 
 
