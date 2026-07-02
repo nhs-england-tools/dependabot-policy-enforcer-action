@@ -289,6 +289,37 @@ describe("buildCommentBody", () => {
     expect(body).toContain(`**high:** [1](https://example.com/report/1)`);
   });
 
+  it("should render report mode alerts under Alerts needing attention and hide Violations section", () => {
+    const body = buildCommentBody(
+      "passed",
+      makePolicy({
+        findings: {
+          blocking: {
+            critical: [{ url: "url-1", age: "10 days", number: 1 }],
+            high: [],
+            medium: [],
+            low: [],
+          },
+          informational: {
+            critical: [],
+            high: [{ url: "url-2", age: "21 days", number: 2 }],
+            medium: [],
+            low: [],
+          },
+        },
+      }),
+      "report",
+      "https://example.com/report",
+      "none",
+    );
+
+    expect(body).toContain("### ⚠️ Alerts needing attention:");
+    expect(body).toContain(`**critical:** [1](https://example.com/report/1)`);
+    expect(body).toContain(`**high:** [2](https://example.com/report/2)`);
+    expect(body).not.toContain("### 🚨 Violations:");
+    expect(body).toContain("are not being enforced");
+  });
+
   it("should collapse informational alerts to general link when more than 20 exist", () => {
     const manyHighInformational = Array.from({ length: 35 }, (_, idx) => ({
       url: `url-${idx + 1}`,
@@ -363,7 +394,7 @@ describe("buildCommentBody", () => {
     expect(between).not.toContain("- **low:**");
   });
 
-  it("should render celebratory message when passed with no violations", () => {
+  it("should render alerts needing attention when passed with informational findings", () => {
     const body = buildCommentBody(
       "passed",
       makePolicy({
@@ -382,9 +413,9 @@ describe("buildCommentBody", () => {
       "critical",
     );
 
-    expect(body).toContain("### 🎉No violations found");
-    expect(body).not.toContain("### 🚨 Violations:");
-    expect(body).not.toContain("None");
+    expect(body).not.toContain("### 🎉No violations found");
+    expect(body).toContain("### 🚨 Violations:");
+    expect(body).toContain("None");
     expect(body).toContain("### ⚠️ Alerts needing attention:");
   });
 

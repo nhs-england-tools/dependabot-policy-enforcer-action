@@ -103,7 +103,7 @@ The `github-token` input is required. The action uses it to fetch Dependabot ale
 | Input | Required | Default | Description |
 | ----- | -------- | ------- | ----------- |
 | `mode` | No | `enforce` | Policy mode: `enforce` (fail workflow on policy violation) or `report` (log warnings but do not fail). |
-| `blocking-severity` | No | `critical` | Once an alert is older than the configured threshold, blocking-severity defines the minimum severity at which that alert is classified as a violation. Allowed values: `critical`, `high`, `medium`, `low`. In enforce mode, these violations can fail the workflow. In report mode, they are still reported as violations but do not fail the workflow.|
+| `blocking-severity` | No | `critical` | Once an alert is older than the configured threshold, `blocking-severity` defines the minimum severity at which that alert is classified as a blocking violation. Allowed values: `critical`, `high`, `medium`, `low`. This setting is enforced only in `enforce` mode. In `report` mode no severity is enforced and all threshold-exceeding alerts are reported as informational findings. |
 | `github-token` | Yes | — | GitHub token used to fetch Dependabot alerts and post a policy summary comment on pull requests. Use `secrets.GITHUB_TOKEN`. Requires `vulnerability-alerts: read` permission. |
 
 ### Modes
@@ -113,7 +113,7 @@ The `mode` input controls how the action responds to policy violations:
 | Mode | Behaviour |
 | ---- | --------- |
 | `enforce` | Fails the workflow check when the repository does not meet the Dependabot policy. This is the default. |
-| `report` | Logs the policy result as a warning but always passes the workflow check. Use this during initial roll-out to observe results without blocking merges. |
+| `report` | Logs the policy result as a warning but always passes the workflow check. No severity is enforced in this mode: all alerts that exceed age thresholds are reported under **Alerts needing attention**. Use this during initial roll-out to observe results without blocking merges. |
 
 Set the mode centrally via an organisation variable (`DEPENDABOT_ENFORCER_MODE`) so that all repositories share the same default. Individual repositories can override it with a repository-level variable of the same name.
 
@@ -127,9 +127,15 @@ The comment includes:
 - **Mode** — the active mode for this run
 - **Severity** — the `blocking-severity` used for this run.
 - **Summary** — severity counts from the policy check
-- **Violations** — findings per category with link to alert. If nothing is shown, then no violating alerts were found.
-- **Alerts needing attention** - Details alerts that were found to be older than the current age thresholds but have a severity below the configured `blocking-severity`
+- **Violations** — findings per category with link to alert (shown in `enforce` mode only).
+- **Alerts needing attention** - Alerts older than the current age thresholds that are informational for the active mode and blocking severity level. In `report` mode this section contains all threshold-exceeding alerts.
 - **Link** — direct link to the repository's Dependabot alerts page
+
+Current report-mode behaviour:
+
+- All alerts that exceed age thresholds are listed under **Alerts needing attention**.
+- The **Violations** section is not shown in report mode.
+- `blocking-severity` does not enforce blocking in report mode.
 
 The comment is idempotent: subsequent runs replace the previous action-managed comment rather than creating duplicates. Comment failures are logged as warnings and never mask the policy decision.
 
