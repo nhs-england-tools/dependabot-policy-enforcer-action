@@ -20003,8 +20003,20 @@ function githubHeaders(token) {
 
 // src/lib/comment.ts
 var COMMENT_MARKER = "<!-- dependabot-policy-enforcer -->";
-function buildCommentBody(status, policy, mode, url) {
-  const statusLine = status === "passed" ? "**Status:** \u2705 Passed" : status === "exempted" ? "**Status:** \u26A0\uFE0F Exempted \u2014 dependency update detected" : status === "error" ? "**Status:** \u274C Error \u2014 policy check could not complete" : "**Status:** \u274C Failed";
+var DISABLED_ALERTS_MESSAGE = "Dependabot alerts are disabled for this repository.";
+var MAX_INFORMATIONAL_ALERT_LINKS = 20;
+function buildStatusLine(status) {
+  switch (status) {
+    case "passed":
+      return "**Status:** \u2705 Passed";
+    case "exempted":
+      return "**Status:** \u26A0\uFE0F Exempted \u2014 dependency update detected";
+    default:
+      return "**Status:** \u274C Failed";
+  }
+}
+function buildCommentBody(status, policy, mode, url, severity) {
+  const statusLine = buildStatusLine(status);
   const lines = [
     COMMENT_MARKER,
     "## \u{1F916} Dependabot Policy Check",
@@ -20012,31 +20024,59 @@ function buildCommentBody(status, policy, mode, url) {
     statusLine
   ];
   const modeLine = `**Mode:** ${mode}`;
-  lines.push(modeLine);
+  const severityLine = `**Severity:** ${severity}`;
+  lines.push(modeLine, severityLine);
   const summary2 = policy.summary;
   lines.push("", "### Summary:");
   for (const [key, value] of Object.entries(summary2)) {
     lines.push(`- **${key}:** ${value}`);
   }
   const violations = policy.findings;
-  lines.push("", "### Violations:");
-  const violation_lines = [];
-  for (const [key, value] of Object.entries(violations.violations)) {
-    info(`Processing violations for severity: ${key}, value: ${JSON.stringify(value)}`);
-    if (!Array.isArray(value)) {
-      violation_lines.push(`- **${key}:** null`);
-      continue;
+  const hasBlockingViolations = Object.values(violations.blocking).some(
+    (entries) => entries.length > 0
+  );
+  if (status === "passed" && !hasBlockingViolations) {
+    if (policy.message === DISABLED_ALERTS_MESSAGE) {
+      lines.push("", policy.message);
+    } else {
+      lines.push("", "### \u{1F389}No violations found");
     }
-    if (!(value.length === 0)) {
-      violation_lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+  } else {
+    lines.push("", "### \u{1F6A8} Violations:");
+    lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently being enforced.");
+    if (mode === "enforce") {
+      lines.push("", "The pipeline will fail until these alerts are remediated");
+    }
+    const blocking_lines = [];
+    for (const [key, value] of Object.entries(violations.blocking)) {
+      if (value.length > 0) {
+        blocking_lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      }
+    }
+    if (blocking_lines.length === 0) {
+      blocking_lines.push("None");
+    }
+    lines.push(...blocking_lines);
+  }
+  const informational_lines = [];
+  for (const [key, value] of Object.entries(violations.informational)) {
+    if (value.length > 0) {
+      if (value.length > MAX_INFORMATIONAL_ALERT_LINKS) {
+        informational_lines.push(`- **${key}:** [ ${value.length} alerts found](${url})`);
+      } else {
+        informational_lines.push(`- **${key}:** ${value.map((v) => `[${v.number}](${url}/${v.number})`).join(", ")}`);
+      }
     }
   }
-  if (violation_lines.length === 0) {
-    violation_lines.push("None");
+  if (informational_lines.length > 0) {
+    lines.push("", "### \u26A0\uFE0F Alerts needing attention:");
+    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced.     They are reported here for information and we recommend they are addressed in a timely manner.");
+    lines.push(...informational_lines);
   }
-  lines.push(...violation_lines);
   lines.push("", `### [View dependabot alerts](${url})`);
-  return lines.join("\n");
+  const result = lines.join("\n");
+  info(result);
+  return result;
 }
 async function withRetry(fn, retries = 1, delayMs = 2e3) {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -20127,11 +20167,11 @@ async function upsertPrComment(opts, body) {
     await createPrComment(opts, body);
   });
 }
-async function postPrComment(githubToken, repo, prNumber, body, status, mode) {
+async function postPrComment(githubToken, repo, prNumber, body, status, mode, severity) {
   if (prNumber !== null) {
     const [owner, repoName] = repo.split("/");
     const url = `https://github.com/${owner}/${repoName}/security/dependabot`;
-    const commentBody = buildCommentBody(status, body, mode, url);
+    const commentBody = buildCommentBody(status, body, mode, url, severity);
     await upsertPrComment(
       { token: githubToken, owner, repo: repoName, prNumber },
       commentBody
@@ -20275,22 +20315,33 @@ async function getPageOfFiles(client, url, headers) {
 var thresholds = {
   critical: {
     maxAgeDays: 5,
-    description: "Critical alerts must be addressed within 10 days"
+    description: "Critical alerts must be addressed within 5 days"
   },
   high: {
-    maxAgeDays: 1e3,
-    description: "High alerts must be addressed within 1000 days"
+    maxAgeDays: 15,
+    description: "High alerts must be addressed within 15 days"
   },
   medium: {
-    maxAgeDays: 1e3,
-    description: "Medium alerts must be addressed within 1000 days"
+    maxAgeDays: 30,
+    description: "Medium alerts must be addressed within 30 days"
   },
   low: {
-    maxAgeDays: 1e3,
-    description: "Low alerts must be addressed within 1000 days"
+    maxAgeDays: 40,
+    description: "Low alerts must be addressed within 40 days"
   }
 };
 var policyConfig_default = thresholds;
+var SEVERITY_RANK = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1
+};
+function isBlockingSeverity(severity, blockingSeverity) {
+  const rank = SEVERITY_RANK[severity];
+  if (rank === void 0) return false;
+  return rank >= SEVERITY_RANK[blockingSeverity];
+}
 
 // src/lib/dependabotAlertsFetcher.ts
 var RECOGNISED_SEVERITIES = /* @__PURE__ */ new Set([
@@ -20356,8 +20407,14 @@ var DependabotPolicyEvaluator = class {
   /**
    * Evaluate alerts against policy thresholds
    */
-  evaluateAlerts(alerts, thresholds2) {
-    const violations = {
+  evaluateAlerts(alerts, thresholds2, blockingSeverity) {
+    const blocking = {
+      critical: [],
+      high: [],
+      medium: [],
+      low: []
+    };
+    const informational = {
       critical: [],
       high: [],
       medium: [],
@@ -20387,25 +20444,33 @@ var DependabotPolicyEvaluator = class {
         continue;
       }
       if (ageDays > threshold.maxAgeDays) {
-        violations[severity].push({
+        const violation = {
           number: alert.number,
           url: alert.url,
           age: this.formatAge(ageDays)
-        });
+        };
+        if (isBlockingSeverity(severity, blockingSeverity)) {
+          blocking[severity].push(violation);
+        } else {
+          informational[severity].push(violation);
+        }
       }
     }
     if (ignoredAlertUrls.length > 0) {
       info(`${ignoredAlertUrls.length} alerts found with no fix available. These alerts are ignored in the policy evaluation. Alerts: ${ignoredAlertUrls.join(", ")}`);
     }
-    const violatingAlerts = violations.critical.length + violations.high.length + violations.medium.length + violations.low.length;
+    const violatingAlerts = blocking.critical.length + blocking.high.length + blocking.medium.length + blocking.low.length;
+    const informationalAlerts = informational.critical.length + informational.high.length + informational.medium.length + informational.low.length;
     return {
       totalOpenAlerts: alerts.length,
       violatingAlerts,
+      informationalAlerts,
       oldestAlert: alerts.length > 0 ? this.formatAge(oldestAgeDays) : "N/A",
-      violations
+      blocking,
+      informational
     };
   }
-  async evaluateDependabotResults(mode) {
+  async evaluateDependabotResults(mode, blockingSeverity) {
     let alerts;
     try {
       alerts = await this.fetchOpenAlerts();
@@ -20413,6 +20478,12 @@ var DependabotPolicyEvaluator = class {
       const message = error2 instanceof Error ? error2.message : String(error2);
       if (error2 instanceof Error && message.includes("Dependabot alerts are disabled for this repository.")) {
         info(`Dependabot alerts are disabled for this repository: ${this.repo}`);
+        const emptyViolations = {
+          critical: [],
+          high: [],
+          medium: [],
+          low: []
+        };
         return {
           pipelinePasses: true,
           mode,
@@ -20420,15 +20491,12 @@ var DependabotPolicyEvaluator = class {
           summary: {
             totalOpenAlerts: null,
             violatingAlerts: null,
+            informationalAlerts: null,
             oldestAlert: null
           },
           findings: {
-            violations: {
-              critical: null,
-              high: null,
-              medium: null,
-              low: null
-            }
+            blocking: emptyViolations,
+            informational: { ...emptyViolations }
           },
           message: "Dependabot alerts are disabled for this repository."
         };
@@ -20438,7 +20506,7 @@ var DependabotPolicyEvaluator = class {
       }
     }
     info(`Fetched Dependabot alerts, with total count: ${alerts.length}`);
-    const evaluation = this.evaluateAlerts(alerts, policyConfig_default);
+    const evaluation = this.evaluateAlerts(alerts, policyConfig_default, blockingSeverity);
     info("Dependabot policy evaluation result finished");
     const pipelinePasses = mode === "report" || evaluation.violatingAlerts === 0;
     const result = {
@@ -20448,14 +20516,17 @@ var DependabotPolicyEvaluator = class {
       summary: {
         totalOpenAlerts: evaluation.totalOpenAlerts,
         violatingAlerts: evaluation.violatingAlerts,
+        informationalAlerts: evaluation.informationalAlerts,
         oldestAlert: evaluation.oldestAlert
       },
       findings: {
-        violations: evaluation.violations
+        blocking: evaluation.blocking,
+        informational: evaluation.informational
       }
     };
-    if (pipelinePasses && evaluation.violatingAlerts > 0) {
-      result.message = `Dependabot policy check passed in report mode, but ${evaluation.violatingAlerts} alert(s) exceed the defined thresholds.`;
+    const totalViolatingAlerts = evaluation.violatingAlerts + evaluation.informationalAlerts;
+    if (pipelinePasses && totalViolatingAlerts > 0) {
+      result.message = `Dependabot policy check passed in report mode, but ${totalViolatingAlerts} alert(s) exceed the defined thresholds.`;
     }
     return result;
   }
@@ -20472,6 +20543,7 @@ var LOG_STYLE = {
 async function run() {
   const repo = process.env.GITHUB_REPOSITORY ?? "";
   const mode = (getInput("mode") || "enforce").trim().toLowerCase();
+  const blockingSeverity = (getInput("blocking-severity") || "critical").trim().toLowerCase();
   const githubToken = getInput("github-token");
   setSecret(githubToken);
   try {
@@ -20493,9 +20565,18 @@ async function run() {
       );
       return;
     }
-    info(`Checking Dependabot policy for ${repo}\u2026`);
+    if (!(blockingSeverity in SEVERITY_RANK)) {
+      setFailed(
+        `blocking-severity must be one of "critical", "high", "medium", "low", got "${blockingSeverity}".`
+      );
+      return;
+    }
+    info(`${LOG_STYLE.bold}${LOG_STYLE.green}This action will check ${repo} for open Dependabot Security alerts older than the allowed thresholds.`);
+    info(`Any alerts at or above the blockingSeverity level AND older than the allowed threshold will be treated as violations.${LOG_STYLE.reset}
+`);
+    info(`Checking Dependabot policy for ${repo} in ${mode} mode with blockingSeverity: ${blockingSeverity}`);
     const evaluator = new DependabotPolicyEvaluator(githubToken, repo);
-    const result = await evaluator.evaluateDependabotResults(mode);
+    const result = await evaluator.evaluateDependabotResults(mode, blockingSeverity);
     const prNumber = extractPrNumber(
       process.env.GITHUB_EVENT_NAME,
       process.env.GITHUB_REF
@@ -20541,7 +20622,7 @@ ${LOG_STYLE.bold}Summary:${LOG_STYLE.reset} ${JSON.stringify(result.summary, nul
       );
     }
     try {
-      await postPrComment(githubToken, repo, prNumber, result, status, mode);
+      await postPrComment(githubToken, repo, prNumber, result, status, mode, blockingSeverity);
     } catch (commentError) {
       const commentMsg = commentError instanceof Error ? commentError.message : String(commentError);
       warning(`Failed to post PR comment: ${commentMsg}`);

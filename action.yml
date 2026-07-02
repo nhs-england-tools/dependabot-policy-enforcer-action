@@ -9,6 +9,14 @@ inputs:
       Set this as an organisation or repository variable (vars.DEPENDABOT_ENFORCER_MODE).
     required: false
     default: "enforce"
+  blocking-severity:
+    description: >-
+      Minimum severity level that will block the pipeline in enforce mode.
+      Alerts at this level and above count as blocking violations; alerts below this level are
+      reported in the PR comment but do not cause a failure.
+      Accepted values: critical, high, medium, low.
+    required: false
+    default: "critical"
   github-token:
     description: >-
       GitHub token used to fetch Dependabot alerts and post a policy summary comment on the pull request.
