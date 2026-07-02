@@ -89,7 +89,7 @@ jobs:
   dependabot-policy:
     runs-on: ubuntu-latest
     steps:
-      - uses: nhs-england-tools/dependabot-policy-enforcer-action@
+      - uses: nhs-england-tools/dependabot-policy-enforcer-action@17049e7907cf426f2f7dfb874608589ba81ba9c9 # v2.2.0
         with:
           mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -208,10 +208,10 @@ The action is configurable via inputs (see [Inputs](#inputs)) and evaluates open
 
 | Severity | Threshold | Result if exceeded in `enforce` mode |
 | -------- | --------- | ------------------------------------- |
-| `critical` | Older than 10 days | Workflow fails |
-| `high` | Older than 1000 days | Workflow fails |
-| `medium` | Older than 1000 days | Workflow fails |
-| `low` | Older than 1000 days | Workflow fails |
+| `critical` | Older than 5 days | Workflow fails |
+| `high` | Older than 15 days | Workflow fails |
+| `medium` | Older than 30 days | Workflow fails |
+| `low` | Older than 40 days | Workflow fails |
 
 Error handling behaviour:
 
