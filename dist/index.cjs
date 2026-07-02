@@ -20016,6 +20016,7 @@ function buildStatusLine(status) {
   }
 }
 function buildCommentBody(status, policy, mode, url, severity) {
+  const isReportMode = mode === "report";
   const statusLine = buildStatusLine(status);
   const lines = [
     COMMENT_MARKER,
@@ -20035,13 +20036,17 @@ function buildCommentBody(status, policy, mode, url, severity) {
   const hasBlockingViolations = Object.values(violations.blocking).some(
     (entries) => entries.length > 0
   );
-  if (status === "passed" && !hasBlockingViolations) {
+  const hasInformationalViolations = Object.values(violations.informational).some(
+    (entries) => entries.length > 0
+  );
+  const hasAnyViolations = hasBlockingViolations || hasInformationalViolations;
+  if (status === "passed" && !hasAnyViolations && !isReportMode) {
     if (policy.message === DISABLED_ALERTS_MESSAGE) {
       lines.push("", policy.message);
     } else {
       lines.push("", "### \u{1F389}No violations found");
     }
-  } else {
+  } else if (!isReportMode) {
     lines.push("", "### \u{1F6A8} Violations:");
     lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently being enforced.");
     if (mode === "enforce") {
@@ -20059,7 +20064,13 @@ function buildCommentBody(status, policy, mode, url, severity) {
     lines.push(...blocking_lines);
   }
   const informational_lines = [];
-  for (const [key, value] of Object.entries(violations.informational)) {
+  const attentionFindings = isReportMode ? {
+    critical: [...violations.blocking.critical, ...violations.informational.critical],
+    high: [...violations.blocking.high, ...violations.informational.high],
+    medium: [...violations.blocking.medium, ...violations.informational.medium],
+    low: [...violations.blocking.low, ...violations.informational.low]
+  } : violations.informational;
+  for (const [key, value] of Object.entries(attentionFindings)) {
     if (value.length > 0) {
       if (value.length > MAX_INFORMATIONAL_ALERT_LINKS) {
         informational_lines.push(`- **${key}:** [ ${value.length} alerts found](${url})`);
@@ -20070,8 +20081,14 @@ function buildCommentBody(status, policy, mode, url, severity) {
   }
   if (informational_lines.length > 0) {
     lines.push("", "### \u26A0\uFE0F Alerts needing attention:");
-    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced.     They are reported here for information and we recommend they are addressed in a timely manner.");
+    if (isReportMode) {
+      lines.push("", "These alerts are older than the defined thresholds. In report mode, all such alerts are shown here for visibility and are not being enforced.");
+    } else {
+      lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced.     They are reported here for information and we recommend they are addressed in a timely manner.");
+    }
     lines.push(...informational_lines);
+  } else if (isReportMode) {
+    lines.push("", "### \u{1F389}No Alerts needing attention found");
   }
   lines.push("", `### [View dependabot alerts](${url})`);
   const result = lines.join("\n");
