@@ -52,8 +52,12 @@ export function buildCommentBody(
   ];
 
   const modeLine = `**Mode:** ${mode}`;
-  const severityLine = `**Severity:** ${severity}`;
-  lines.push(modeLine, severityLine);
+  lines.push(modeLine);
+  let severityLine = "";
+  if (!isReportMode) {
+    severityLine = `**Severity:** ${severity}`;
+    lines.push(severityLine);
+  }
   const summary = policy.summary;
   lines.push("", "### Summary:");
   for (const [key, value] of Object.entries(summary)) {

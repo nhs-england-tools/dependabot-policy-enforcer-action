@@ -310,9 +310,10 @@ describe("buildCommentBody", () => {
       }),
       "report",
       "https://example.com/report",
-      "none",
+      "critical",
     );
 
+    expect(body).not.toContain("Severity:");
     expect(body).toContain("### ⚠️ Alerts needing attention:");
     expect(body).toContain(`**critical:** [1](https://example.com/report/1)`);
     expect(body).toContain(`**high:** [2](https://example.com/report/2)`);
