@@ -3,7 +3,7 @@
  * Demo script that simulates a Dependabot policy check with fake alerts.
  *
  * Usage:
- *   yarn tsx scripts/demo-policy-check.ts [--mode enforce|report] [--blocking-severity critical|high|medium|low] [--failure]
+ *   yarn tsx scripts/demo-policy-check.ts [--mode enforce|report] [--blocking-severity critical|high|medium|low] [--dependabotDisabled]
  * e.g yarn tsx scripts/demo-policy-check.ts --mode enforce --blocking-severity high
  *
  * This patches the GitHub API call so no real token is needed, then runs
