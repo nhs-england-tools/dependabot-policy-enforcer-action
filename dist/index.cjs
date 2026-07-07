@@ -20043,9 +20043,11 @@ function buildCommentBody(status, policy, mode, url, severity) {
     }
   } else {
     lines.push("", "### \u{1F6A8} Violations:");
-    lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently being enforced.");
+    lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently set.");
     if (mode === "enforce") {
       lines.push("", "The pipeline will fail until these alerts are remediated");
+    } else {
+      lines.push("", "The pipeline will not fail because it's running in report mode, but these alerts should be remediated");
     }
     const blocking_lines = [];
     for (const [key, value] of Object.entries(violations.blocking)) {
@@ -20070,7 +20072,7 @@ function buildCommentBody(status, policy, mode, url, severity) {
   }
   if (informational_lines.length > 0) {
     lines.push("", "### \u26A0\uFE0F Alerts needing attention:");
-    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced.     They are reported here for information and we recommend they are addressed in a timely manner.");
+    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently set.     They are reported here for information and we recommend they are addressed in a timely manner.");
     lines.push(...informational_lines);
   }
   lines.push("", `### [View dependabot alerts](${url})`);
