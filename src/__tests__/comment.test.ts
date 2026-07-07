@@ -705,6 +705,32 @@ describe("postPrComment", () => {
     const [listUrl] = mockHttp.get.mock.calls[0] as [string];
     expect(listUrl).toContain("/repos/my-org/my-repo/issues/9/comments");
   });
+
+  it("should pass if mode is report even if there is violations", async () => {
+    mockHttp.get.mockResolvedValueOnce(makeResponse(200, "[]"));
+    mockHttp.post.mockResolvedValueOnce(makeResponse(201, "{}"));
+
+    await postPrComment(
+      "tok",
+      "my-org/my-repo",
+      9,
+      VALID_BODY,
+      "passed",
+      "report",
+      "critical",
+    );
+
+    const [, postBody] = mockHttp.post.mock.calls[0] as [string, string];
+    expect(JSON.parse(postBody).body).toContain(
+      "**Mode:** report",
+    );
+    expect(JSON.parse(postBody).body).toContain(
+      "The pipeline will not fail because it's running in report mode, but these alerts should be remediated",
+    );
+    expect(JSON.parse(postBody).body).toContain(
+      "Passed",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
