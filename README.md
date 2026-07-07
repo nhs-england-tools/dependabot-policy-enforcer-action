@@ -89,7 +89,7 @@ jobs:
   dependabot-policy:
     runs-on: ubuntu-latest
     steps:
-      - uses: nhs-england-tools/dependabot-policy-enforcer-action@17049e7907cf426f2f7dfb874608589ba81ba9c9 # v2.2.0
+      - uses: nhs-england-tools/dependabot-policy-enforcer-action@a47f1b6806f6227d06a1d38c6f671cd8c3a06929 # v2.3.0
         with:
           mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
