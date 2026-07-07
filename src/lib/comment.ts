@@ -72,9 +72,12 @@ export function buildCommentBody(
     }
   } else {
     lines.push("", "### 🚨 Violations:");
-    lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently being enforced.");
+    lines.push("", "These alerts are older than the defined thresholds and are at or exceed the severity level currently set.");
     if (mode === "enforce") {
       lines.push("", "The pipeline will fail until these alerts are remediated");
+    }
+    else {
+      lines.push("", "The pipeline will not fail because it's running in report mode, but these alerts should be remediated");
     }
     const blocking_lines: string[] = [];
     for (const [key, value] of Object.entries(violations.blocking)) {
@@ -101,7 +104,7 @@ export function buildCommentBody(
   }
   if (informational_lines.length > 0) {
     lines.push("", "### ⚠️ Alerts needing attention:");
-    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently being enforced. \
+    lines.push("", "These alerts are older than the defined thresholds but are below the severity level currently set. \
     They are reported here for information and we recommend they are addressed in a timely manner.");
     lines.push(...informational_lines);
   }
