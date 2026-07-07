@@ -15,11 +15,11 @@
     "@actions/http-client": "^4.0.1"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.0.1",
     "esbuild": "^0.28.1",
     "tsx": "^4.22.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.9"
   },
   "packageManager": "yarn@4.6.0",
   "engines": {
