@@ -89,7 +89,7 @@ jobs:
   dependabot-policy:
     runs-on: ubuntu-latest
     steps:
-      - uses: nhs-england-tools/dependabot-policy-enforcer-action@5045f77f7151cc822cf593c51356f76cf408714c # v1
+      - uses: nhs-england-tools/dependabot-policy-enforcer-action@a47f1b6806f6227d06a1d38c6f671cd8c3a06929 # v2.3.0
         with:
           mode: ${{ vars.DEPENDABOT_ENFORCER_MODE }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -171,12 +171,27 @@ Each run queries GitHub for open Dependabot alerts, evaluates alerts against sev
 
 ```mermaid
 sequenceDiagram
-  Action->>+GitHub API: GET /repos/{owner}/{repo}/dependabot/alerts?state=open
-  GitHub API-->>-Action: Open Dependabot alerts (paginated)
-  Action->>Action: Evaluate severity + age thresholds
-  Action->>Action: Apply mode (enforce/report)
-  Action->>GitHub API: (optional) post PR summary comment
-  Action-->>-Runner: Pass / Fail check
+    participant Runner
+    participant Action
+    participant GitHubAPI as GitHub API
+
+    Runner->>+Action: Trigger workflow
+    Action->>Action: Validate github-token input
+    Action->>+GitHubAPI: GET /repos/{owner}/{repo}/dependabot/alerts?state=open
+    GitHubAPI-->>-Action: Open Dependabot alerts (paginated)
+    Action->>Action: Evaluate severity + age thresholds
+    Action->>Action: Check blocking-severity violations
+    alt pull_request event
+        Action->>+GitHubAPI: GET PR file list (exemption check)
+        GitHubAPI-->>-Action: PR files
+        Action->>Action: Check for dependency/Actions files
+    end
+    Action->>Action: Apply mode (enforce/report)<br/>- enforce: fail if violations found<br/>- report: log warnings, always pass
+    alt is pull_request
+        Action->>+GitHubAPI: POST/UPDATE PR summary comment
+        GitHubAPI-->>-Action: Comment created/updated
+    end
+    Action-->>-Runner: Pass / Fail check
 ```
 
 Dependabot alerts are retrieved from the GitHub API using the workflow token. Required headers are applied automatically:
@@ -193,10 +208,10 @@ The action is configurable via inputs (see [Inputs](#inputs)) and evaluates open
 
 | Severity | Threshold | Result if exceeded in `enforce` mode |
 | -------- | --------- | ------------------------------------- |
-| `critical` | Older than 10 days | Workflow fails |
-| `high` | Older than 1000 days | Workflow fails |
-| `medium` | Older than 1000 days | Workflow fails |
-| `low` | Older than 1000 days | Workflow fails |
+| `critical` | Older than 5 days | Workflow fails |
+| `high` | Older than 15 days | Workflow fails |
+| `medium` | Older than 30 days | Workflow fails |
+| `low` | Older than 40 days | Workflow fails |
 
 Error handling behaviour:
 
