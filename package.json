@@ -19,7 +19,7 @@
     "esbuild": "^0.28.1",
     "tsx": "^4.23.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   },
   "packageManager": "yarn@4.6.0",
   "engines": {
